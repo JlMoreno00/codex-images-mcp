@@ -1,0 +1,13 @@
+{
+  "endpoint": "https://mcp.example.com/codex-images/mcp",
+  "allowedInputRoots": [
+    "/home/USER"
+  ],
+  "allowedOutputRoots": [
+    "/home/USER"
+  ],
+  "maxFileBytes": 8388608,
+  "maxRequestBytes": 25165824,
+  "requestTimeoutMs": 300000,
+  "tokenFile": "~/.config/codex-images/token"
+}
