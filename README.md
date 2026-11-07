@@ -1,97 +1,67 @@
-# codex-imagen
+# codex-images-mcp
 
-Production image-gen toolkit on top of the Codex OAuth bridge — uses your
-ChatGPT subscription, no `OPENAI_API_KEY` needed.
+Generate and edit images from any MCP client with **gpt-image-2 on the ChatGPT plan you already pay for**. No OpenAI API key, no per-image bill.
 
-![Python](https://img.shields.io/badge/python-3.11%2B-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Tests](https://img.shields.io/badge/tests-359%20passing-brightgreen)
-![Powered by](https://img.shields.io/badge/powered%20by-Codex%20OAuth-black)
+codex-images-mcp is an MCP server for the Codex Images endpoint. It runs locally over stdio, or as a **self-hosted HTTP server** that your laptop, your VPS agents and your Pi / Gentle Shell sessions can share. Every image comes back as a verifiable artifact: SHA-256, byte count, MIME type and real dimensions.
 
-Three interfaces over one engine: Python SDK, `imagen` CLI, MCP server.
+> **Unofficial.** Not affiliated with or endorsed by OpenAI. It signs in with your own ChatGPT account and uses the same endpoint as the Codex CLI. You are bound by OpenAI's terms for your account, and image generation counts against your plan's limits.
 
----
+## What you get
 
-## Highlights
+- **Two tools**: `codex_images` (generate/edit) and `codex_images_artifact` (fetch an image by URI, inline or through a short-lived signed download).
+- **Batches**: `parallel`, `variants`, `chain` and `branded-parallel` (every image references a shared anchor for brand-consistent sets).
+- **Edits with references and masks**: up to five references per request, HTTPS URLs or inline images.
+- **Native transparency**: real alpha PNGs from the model, with a warning when a result comes back opaque.
+- **Exact output sizes**: `native`, `exact`, `fit` or `cover` post-processing, so a 1200×630 card is 1200×630.
+- **Prompts sent verbatim**: no hidden rewriting model in between.
+- **Self-hosting that is safe by default**: built-in bearer auth, refuses to listen publicly without a token, SSRF-hardened URL fetching (HTTPS, public addresses only, pinned IP, no redirects), no server paths in results.
+- **Its own ChatGPT session**: `codex-images-mcp login` uses a device code and keeps a separate session, so it never rotates (and breaks) your Codex app's sign-in.
 
-- **5 batch modes** — single / parallel / variants / chain / branded-parallel (best for coherent website sections)
-- **4 reasoning modes** — raw (~20 s) → max (~3 min), auto-selected based on prompt shape
-- **Better transparency** — green chroma-key + dominance despill, 54× cleaner on fur vs. magenta defaults
-- **Bundled AI skill** — auto-installs into Claude Code / Codex / Claude Desktop on `imagen setup`
-- **Skill loader** — pass any `.md` skill file, body merges into the prompt builder
-- **Codex labeled-spec prompts** — 14-field structured prompts for predictable output
-- **MCP server** — drop into 5 AI clients with one command
-
----
-
-## Install
-
-**One-liner (recommended):**
+## Quick start (local, stdio)
 
 ```bash
-# macOS / Linux
-curl -fsSL https://raw.githubusercontent.com/VelmoAI/codex-imagen/main/install.sh | sh
-
-# Windows PowerShell
-iwr https://raw.githubusercontent.com/VelmoAI/codex-imagen/main/install.ps1 | iex
+uvx --from codex-images-mcp codex-images-mcp login     # sign in once (device code)
+uvx --from codex-images-mcp codex-images-mcp setup     # register in Claude Code, Claude Desktop, Codex, Cursor, OpenCode
 ```
 
-This installs [uv](https://github.com/astral-sh/uv) (if missing) and runs
-`imagen setup` — registers the MCP server and the bundled skill in your AI clients.
-
-**Already have uv:** `uvx codex-imagen setup`
-
-**pip:** `pip install codex-imagen && imagen setup`
-
-**From GitHub (latest main):**
-`pip install git+https://github.com/VelmoAI/codex-imagen.git && imagen setup`
-
----
-
-## 60-second quick start
-
-```python
-from codex_imagen import imagen
-
-# One image
-r = imagen(prompt="a brass diya oil lamp, editorial product shot")
-print(r.images[0].path)
-
-# 6 brand-consistent website sections in one call
-r = imagen(
-    prompt=["hero", "about", "features", "gallery", "pricing", "footer"],
-    anchor="modern Indian restaurant, warm terracotta and brass palette, editorial photography",
-    batch_mode="branded-parallel",
-    parallel=3,
-    output_dir="./out/restaurant-site",
-)
-```
-
-CLI:
+Or try it from the terminal:
 
 ```bash
-imagen "a brass diya oil lamp"
-imagen "a brass diya oil lamp" --transparent       # RGBA PNG
-imagen setup                                        # install MCP + skill
-imagen status                                       # install state per client
+uvx --from codex-images-mcp codex-images-mcp generate "a ceramic mug, studio light" --transparent --pretty
 ```
 
----
+Already signed in to the Codex CLI? codex-images-mcp can use that login **read-only** until its token expires. It never refreshes it; run `login` for a session of its own.
 
-## Docs
+## Self-hosted (HTTP)
 
-- [Batch modes](docs/modes.md) — single, parallel, variants, chain, branded-parallel
-- [Reasoning modes](docs/reasoning.md) — raw, medium, high, max — with timing
-- [Transparency](docs/transparency.md) — chroma-key pipeline, despill, complex subjects
-- [Skills](docs/skills.md) — bundled skill + external skill loader
-- [MCP server](docs/mcp.md) — per-client setup (Claude Code, Desktop, Codex, Cursor)
-- [CLI reference](docs/cli.md) — every subcommand and flag
-- [SDK reference](docs/sdk.md) — Python API, ImagenOptions, ImagenResult
-- [Why use this vs. native image\_gen?](docs/comparison.md)
-- [Releasing](docs/releasing.md)
+```bash
+export CODEX_IMAGES_HTTP_TOKEN=$(openssl rand -hex 32)
+docker compose up -d
+docker compose run --rm codex-images codex-images-mcp login
+```
 
----
+Then point your clients at `https://your-host/mcp/` with `Authorization: Bearer $CODEX_IMAGES_HTTP_TOKEN`. See [docs/self-hosting.md](docs/self-hosting.md) for the reverse proxy, signed downloads and every setting.
+
+## Pi and Gentle Shell
+
+[`pi-codex-images`](packages/pi-codex-images) is a Pi extension for a self-hosted server. It reads the local files you authorize, sends them inline, and writes verified results atomically into your project:
+
+```bash
+pi install npm:pi-codex-images
+```
+
+## Documentation
+
+- [MCP tools reference](docs/mcp.md): inputs, results, error codes.
+- [CLI](docs/cli.md): `generate`, `login`, `logout`, `setup`, `status`, `uninstall`.
+- [Self-hosting](docs/self-hosting.md): Docker, reverse proxy, configuration, security model.
+- [Examples](docs/examples.md): batches, edits, masks, transparency, exact sizes.
+- [Comparison](docs/comparison.md): how this differs from similar projects.
+
+## Credits
+
+codex-images-mcp started as a fork of [VelmoAI/codex-imagen](https://github.com/VelmoAI/codex-imagen) by wauwa. The installer and much of the original structure come from there. The OAuth token handling derives from [codex-image-gen](https://github.com/smturtle2/codex-image-gen) by Small Turtle 2. The generation engine was replaced with the native Codex Images endpoint, and the prompt-rewriting and chroma-key layers were removed.
 
 ## License
 
-MIT, Copyright (c) 2026 wauwa. See [LICENSE](LICENSE) for the full text.
+MIT. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

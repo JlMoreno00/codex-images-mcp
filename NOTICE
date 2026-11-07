@@ -1,0 +1,14 @@
+codex-images-mcp
+Copyright (c) 2026 JlMoreno00. Licensed under the MIT License (see LICENSE).
+
+This project is a fork of codex-imagen
+  https://github.com/VelmoAI/codex-imagen
+  Copyright (c) 2026 wauwa. MIT License.
+
+The OAuth token loading and refresh in src/codex_images_mcp/_auth.py derive from
+codex-image-gen
+  https://github.com/smturtle2/codex-image-gen
+  Copyright (c) 2026 Small Turtle 2. MIT License.
+
+Not affiliated with or endorsed by OpenAI. "ChatGPT", "Codex" and "gpt-image-2"
+are trademarks or product names of OpenAI.

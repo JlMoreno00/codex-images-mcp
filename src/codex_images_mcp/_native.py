@@ -21,7 +21,7 @@ from ._auth import oauth_headers
 from ._urls import validate_public_https
 
 BASE = 'https://chatgpt.com/backend-api/codex/images'
-MAX_INPUT_BYTES = int(os.environ.get('IMAGEN_MAX_INLINE_INPUT_BYTES', str(8 * 1024 * 1024)))
+MAX_INPUT_BYTES = int(os.environ.get('CODEX_IMAGES_MAX_INLINE_INPUT_BYTES', str(8 * 1024 * 1024)))
 DEPRECATED = ('mode', 'skills', 'instruction_files', 'extra_instructions', 'chroma_key', 'chroma_tolerance', 'image_model', 'output_dir', 'chroma_despill', 'chroma_despill_mode', 'chroma_edge_erode_px', 'chroma_auto_key', 'chroma_transparent_threshold', 'chroma_opaque_threshold', 'enhance_prompt', 'vars', 'parallel', 'wall_clock_timeout', 'advanced')
 FIELDS = ('use_case', 'asset_type', 'primary_request', 'input_images', 'scene', 'subject', 'style_medium', 'composition', 'lighting_mood', 'palette', 'materials', 'text_verbatim', 'constraints', 'avoid')
 LABELS = ('Use case', 'Asset type', 'Primary request', 'Input images', 'Scene/backdrop', 'Subject', 'Style/medium', 'Composition/framing', 'Lighting/mood', 'Color palette', 'Materials/textures', 'Text (verbatim)', 'Constraints', 'Avoid')

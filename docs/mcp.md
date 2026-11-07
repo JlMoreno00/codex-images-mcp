@@ -1,209 +1,122 @@
-# MCP server
+# MCP tools reference
 
-`codex-imagen` ships a stdio MCP (Model Context Protocol) server that exposes a
-single `imagen` tool. AI clients that support MCP can call `imagen` as a
-structured tool — no CLI invocation or subprocess needed.
+The server is named `codex-images` and exposes two tools. The stdio server and the HTTP server behave the same way, with two differences: over stdio each artifact also carries its local `path`, and over HTTP, `codex_images_artifact` can issue a signed download URL.
 
----
+## `codex_images`
 
-## What MCP gives you
+Generate or edit images. The only required field is `prompt`.
 
-- Claude Desktop, Cursor, and other MCP clients can call `imagen` as a first-class
-  tool with full parameter validation
-- The tool description embedded in the JSON schema teaches the model how to pick
-  a `batch_mode`, when to use each reasoning mode, and how transparency/skills work
-- Errors are returned as structured `{ok: false, error: "...", error_type: "..."}` —
-  never as protocol-level exceptions — so the calling model can react and retry
+| Field | Type | Meaning |
+|---|---|---|
+| `prompt` | string, object or array | String: sent verbatim. Object: a labeled spec (`primary_request`, `subject`, `scene`, `style_medium`, `composition`, `lighting_mood`, `palette`, `materials`, `text_verbatim`, `constraints`, `avoid`, …) rendered as `Label: value` lines. Array: one request per item, up to four at a time. |
+| `batch_mode` | `auto`, `single`, `parallel`, `variants`, `chain`, `branded-parallel` | How several images relate. See below. |
+| `count` | integer ≥ 1 | Number of images for `variants`. |
+| `anchor` | string or object | Prompt for an anchor image that `chain` and `branded-parallel` reference. |
+| `references` | array | Up to five reference images per request (the anchor and previous image count toward the five). |
+| `mask` | string or object | Edit mask in the same forms as a reference. Requires a reference. |
+| `transparent` | boolean | Request a native transparent background. |
+| `output` | object | Final format and dimensions, see below. |
+| `size` | string | Size hint for the backend only. Use `output` for final dimensions. |
+| `output_format` | `png`, `jpeg`, `webp` | Shortcut for `output.format`. |
 
----
+### Batch modes
 
-## Quick install: `imagen setup`
+| Mode | Behavior |
+|---|---|
+| `single` | One image. |
+| `parallel` | Independent images from a list of prompts. |
+| `variants` | `count` images from one prompt. |
+| `chain` | Each image references the anchor and the previous output. |
+| `branded-parallel` | Every image references the anchor; used for consistent sets. |
+| `auto` | `branded-parallel` when an `anchor` is given, otherwise `parallel` or `single`. |
 
-The fastest path for all clients at once:
+### References and masks
 
-```bash
-# macOS / Linux — one-liner (installs uv if needed, then runs setup)
-curl -fsSL https://raw.githubusercontent.com/VelmoAI/codex-imagen/main/install.sh | sh
+A reference is either an HTTPS URL string or an object:
 
-# Windows PowerShell
-iwr https://raw.githubusercontent.com/VelmoAI/codex-imagen/main/install.ps1 | iex
-
-# Already have uv?
-uvx codex-imagen setup
-
-# pip install?
-pip install codex-imagen && imagen setup
+```json
+{"source": {"type": "inline_blob", "data": "<base64>"}, "mime_type": "image/png", "role": "content"}
+{"source": {"type": "url", "url": "https://example.com/photo.jpg"}}
+{"source": {"type": "resource", "uri": "mcp://codex-images/jobs/<job>/artifacts/0"}}
 ```
 
-`imagen setup` detects which AI clients are installed on your machine, writes
-the MCP config snippet, and installs the bundled skill alongside it.
+- `role` is one of `identity`, `style`, `composition`, `content` or `mask`, or a list of them. A reference with role `mask` is used as the mask.
+- URLs must be HTTPS and resolve only to public addresses. The server connects to the address it checked and does not follow redirects.
+- Inline images must be real PNG, JPEG or WebP. The type is detected from the bytes, and a declared `mime_type` must match. Limits: 8 MiB per file and 24 MiB per request.
+- Local paths (`/home/...`, `{"type": "local_file"}`) are rejected with `LOCAL_PATH_FORBIDDEN`. Local clients (the CLI, the Pi extension) read the file and send it as `inline_blob`.
+- The backend treats masks as a loose hint and may regenerate the whole frame.
 
-```bash
-imagen setup                              # interactive walkthrough
-imagen setup --all                        # install for all detected clients
-imagen setup --client cursor              # target a specific client
-imagen setup --dry-run --all              # preview what would happen
+### Output
+
+```json
+{"output": {"format": "png", "width": 1200, "height": 630, "size_policy": "cover"}}
 ```
 
----
+| `size_policy` | Result |
+|---|---|
+| `native` (default) | Whatever size the backend returned. |
+| `exact` | Resized to exactly `width`×`height` (aspect ratio may change). |
+| `fit` | Scaled to fit inside `width`×`height`, aspect ratio kept. |
+| `cover` | Scaled and center-cropped to exactly `width`×`height`. |
 
-## Per-client install details
+`exact`, `fit` and `cover` require both `width` and `height` (1–8192). JPEG cannot store alpha, so transparent pixels are flattened onto white, with a warning.
 
-### Claude Code
-
-Config location: `~/.claude/claude_desktop_config.json` (shared with Claude Desktop)
-
-Snippet written by `imagen setup`:
+### Result: `codex-images.result/v2`
 
 ```json
 {
-  "mcpServers": {
-    "codex-imagen": {
-      "command": "uvx",
-      "args": ["codex-imagen-mcp"]
-    }
-  }
-}
-```
-
-Skill location: `~/.claude/skills/imagen/SKILL.md`
-
-After setup, restart Claude Code (or reload the window) for the MCP server to
-be picked up.
-
-### Claude Desktop
-
-Same config file and skill location as Claude Code. Restart Claude Desktop after
-setup.
-
-### Codex CLI
-
-Config location: `~/.codex/config.toml`
-
-`imagen setup --client codex` also writes a preference snippet to
-`~/.codex/AGENTS.md` so the Codex AI prefers `imagen` over the built-in
-`imagegen` tool.
-
-Skill location: `~/.codex/skills/imagen/SKILL.md`
-
-### Cursor
-
-Config location: Cursor's MCP settings file (detected automatically by `imagen setup`).
-
-Skill: Cursor does not support the Claude/Codex skill convention. The MCP server
-itself is registered but no skill file is written.
-
-### OpenCode
-
-Similar to Cursor — MCP config is written, no skill file.
-
-### Generic / manual
-
-If your client is not one of the five above, add this snippet manually:
-
-```json
-{
-  "mcpServers": {
-    "codex-imagen": {
-      "command": "uvx",
-      "args": ["codex-imagen-mcp"]
-    }
-  }
-}
-```
-
-If you prefer a direct path (not uvx):
-
-```json
-{
-  "mcpServers": {
-    "codex-imagen": {
-      "command": "python",
-      "args": ["-m", "codex_imagen.mcp_server"]
-    }
-  }
-}
-```
-
----
-
-## Check install state
-
-```bash
-imagen status
-```
-
-Output shows all 5 clients with detected / installed columns, plus skill status:
-
-```
-codex-imagen MCP installer — client status
-
-#    Client            Detected    Installed   Config
----------------------------------------------------------------------------
-1    Claude Code       yes         yes         /Users/me/.claude/claude_desktop_config.json
-2    Claude Desktop    yes         yes         /Users/me/.claude/claude_desktop_config.json
-3    Codex             yes         yes         /Users/me/.codex/config.toml
-4    Cursor            no          -           (not found)
-5    OpenCode          no          -           (not found)
-
-Detected: 3/5  |  Installed: 3/5
-```
-
----
-
-## Uninstall
-
-```bash
-imagen uninstall --all            # remove from everywhere
-imagen uninstall --client codex   # remove from one client
-```
-
----
-
-## Troubleshooting
-
-**`imagen status` shows "not installed" after `imagen setup`:**
-Restart the client. MCP configs are read at startup.
-
-**"command not found: uvx":**
-Install uv: `curl -fsSL https://astral.sh/uv/install.sh | sh`, then retry.
-
-**Health check:**
-
-```bash
-imagen --health
-```
-
-Checks Codex OAuth auth, Pillow, and the bridge library. Run this before
-reporting issues.
-
----
-
-## MCP tool return shape
-
-The `imagen` tool always returns a JSON payload:
-
-```json
-{
-  "ok": true,
-  "mode": "medium",
-  "batch_mode": "branded-parallel",
-  "images": [
-    {"path": "/abs/path/00.png", "bytes": 412800, "index": 0, "prompt": "..."}
+  "schema_version": "codex-images.result/v2",
+  "status": "completed",
+  "job_id": "5f0c…",
+  "batch": {"requested": 2, "completed": 2, "failed": 0, "recoverable": 2},
+  "artifacts": [
+    {"index": 0, "status": "completed", "artifact_id": "artifact_0",
+     "uri": "mcp://codex-images/jobs/5f0c…/artifacts/0", "name": "00-1a2b3c4d5e6f.png",
+     "mime_type": "image/png", "bytes": 482113, "width": 1024, "height": 1024,
+     "sha256": "…"}
   ],
-  "manifest_path": "/abs/path/manifest.jsonl",
-  "elapsed_ms": 73400,
-  "warnings": []
+  "manifest_uri": "mcp://codex-images/jobs/5f0c…/manifest/manifest",
+  "warnings": [],
+  "errors": [],
+  "models": {"dispatched": "gpt-image-2"}
 }
 ```
 
-On failure: `{"ok": false, "error": "...", "error_type": "..."}` — never a
-protocol-level MCP error for input problems.
+- `status` is `completed`, `partial` (some images failed) or `failed`. Only `completed` is reported as a successful tool result.
+- A failed batch item stays in `artifacts` as `{"index": n, "status": "failed", "error": {...}}`.
+- Tool content holds a one-line summary plus one `resource_link` per completed image. Read a link with `resources/read` or with `codex_images_artifact`.
+- Artifacts expire 15 minutes after the job was created.
 
----
+## `codex_images_artifact`
 
-## Related
+| Field | Type | Meaning |
+|---|---|---|
+| `uri` | string | An `mcp://codex-images/jobs/<job>/artifacts/<n>` URI. |
+| `delivery` | `auto`, `inline`, `download` | `auto` returns images up to 2 MiB inline. Larger images get a signed download when the server has a public base URL, and are returned inline otherwise. |
 
-- [Skills](skills.md) — bundled skill installed alongside MCP config
-- [CLI reference](cli.md) — `setup`, `uninstall`, `status` subcommands in detail
-- [SDK reference](sdk.md) — same parameters available programmatically
+The result (`codex-images.artifact/v1`) carries `filename`, `mime_type`, `width`, `height`, `bytes`, `sha256` and `ttl_ms`. Images are re-verified from disk before they are returned. Downloads add `download.url`, a single-use HTTPS link valid for at most 120 seconds. Treat it like a password.
+
+## Error codes
+
+| Code | Meaning |
+|---|---|
+| `INVALID_ARGUMENT` | Malformed arguments (for example an empty prompt list). |
+| `LOCAL_PATH_FORBIDDEN` | A local path was sent to the server; send the file inline. |
+| `INPUT_MATERIALIZATION_FAILED` | A reference or mask could not be prepared (bad base64, too large, two masks, mask without reference). |
+| `UNSUPPORTED_MIME_TYPE` | An input is not PNG, JPEG or WebP, or its declared type does not match. |
+| `TOO_MANY_REFERENCES` | More than five references in one request. |
+| `REMOTE_DOWNLOAD_FAILED` | A URL reference is not HTTPS, resolves to a private address, redirects or failed to download. |
+| `UNSUPPORTED_DIMENSIONS` | Invalid `output` size or policy. |
+| `CLIENT_WRITE_FAILED` | `client_destination` was sent to the server; it is for client adapters only. |
+| `UPSTREAM_AUTH_FAILED` | The ChatGPT session is missing or expired. Run `codex-images-mcp login`. |
+| `UPSTREAM_GENERATION_FAILED` | The image endpoint failed; usually retryable. |
+| `ARTIFACT_INCOMPLETE`, `ARTIFACT_PERSISTENCE_FAILED` | A generated image could not be verified or stored. |
+| `ARTIFACT_READ_FAILED`, `ARTIFACT_TOO_LARGE` | Unknown, expired or oversized artifact. |
+| `INLINE_LIMIT_EXCEEDED` | `delivery=inline` was requested for an image over 2 MiB. |
+| `DOWNLOAD_UNAVAILABLE` | Downloads are not configured, or the link is invalid or expired. |
+
+Each error object has `code`, `message`, `layer` (`server` or `provider`), `retryable` and, for batch items, `input_index`.
+
+## Deprecated fields
+
+These fields come from codex-imagen. They are accepted and ignored, each with a warning: `mode`, `skills`, `instruction_files`, `extra_instructions`, `enhance_prompt`, `image_model`, `output_dir`, `vars`, `parallel`, `wall_clock_timeout`, `advanced` and every `chroma_*` field.
