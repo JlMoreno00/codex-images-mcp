@@ -1,284 +1,89 @@
-"""Tests for :mod:`codex_images_mcp.mcp_server`.
-
-Strategy
---------
-* Call the registered handlers directly via the public helpers
-  (``_list_tools``, ``_call_tool``). We do NOT spin up the stdio loop —
-  that would require an mcp client and pipes; the handlers themselves
-  contain all the logic worth testing.
-* :func:`asyncio.run` is used inline so we don't depend on the
-  pytest-asyncio plugin's per-test fixtures (it's available but using
-  ``asyncio.run`` keeps these tests dead-simple).
-* :func:`imagen` is monkey-patched at the module level in mcp_server so
-  no real bridge calls happen.
-"""
-
+"""Tests for the stdio MCP adapter in :mod:`codex_images_mcp.mcp_server`."""
 from __future__ import annotations
 
-import asyncio
-import dataclasses
-import json
+import base64
+import hashlib
+from io import BytesIO
 from pathlib import Path
-from typing import Any, cast
 
 import pytest
+from mcp.types import CallToolResult, ImageContent, ResourceLink, TextContent
+from PIL import Image
 
 from codex_images_mcp import mcp_server
-from codex_images_mcp.core import (
-    ImagenHealth,
-    ImagenImage,
-    ImagenOptions,
-    ImagenResult,
-    _VALID_BATCH_MODES,
-    _VALID_MODES,
-    _VALID_OUTPUT_FORMATS,
-)
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+def _engine(args):
+    out = Path(args["output_dir"])
+    out.mkdir(parents=True, exist_ok=True)
+    path = out / "raw-0.png"
+    Image.new("RGBA", (6, 4), (0, 128, 255, 255)).save(path)
+    return {"ok": True, "images": [{"index": 0, "path": str(path)}], "warnings": [], "models": {}}
 
 
-def _run(coro: Any) -> Any:
-    """Run an awaitable synchronously inside a test."""
-    return asyncio.run(coro)
+def _structured(result: CallToolResult) -> dict:
+    assert result.structuredContent is not None
+    return result.structuredContent
 
 
-def _make_result(ok: bool = True) -> ImagenResult:
-    """Build a minimal :class:`ImagenResult` with one image for tests."""
-    img = ImagenImage(
-        index=0,
-        path=Path("./out/img_0.png"),
-        bytes=1234,
-        mime_type="image/png",
-        response_id="resp_x",
-        call_id="call_x",
-        revised_prompt=None,
-        original_prompt="cat",
-        final_prompt="cat",
-        transparent=False,
-        references_used=(),
-        raw_png_path=None,
-    )
-    return ImagenResult(
-        ok=ok,
-        mode="medium",
-        batch_mode="single",
-        images=(img,) if ok else (),
-        manifest_path=Path("./out/manifest.jsonl") if ok else None,
-        elapsed_ms=42,
-        health=ImagenHealth(ok=True, codex_image_gen_available=True),
-        error=None if ok else "synthetic failure",
-        warnings=(),
-    )
+@pytest.fixture(autouse=True)
+def _output_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("CODEX_IMAGES_OUTPUT_DIR", str(tmp_path))
+    monkeypatch.delenv("CODEX_IMAGES_PUBLIC_BASE_URL", raising=False)
 
 
-# ---------------------------------------------------------------------------
-# Tool catalog
-# ---------------------------------------------------------------------------
-
-
-def test_list_tools_returns_one_tool_named_imagen() -> None:
-    tools = _run(cast(Any, mcp_server._list_tools)())
-    assert isinstance(tools, list)
-    assert len(tools) == 1
-    assert tools[0].name == "imagen"
-
-
-def test_tool_description_contains_mode_guide() -> None:
-    """Every batch mode must appear in the description so the AI can pick."""
-    desc = mcp_server.TOOL_DESCRIPTION
-    for mode in ("single", "parallel", "variants", "chain", "branded-parallel"):
-        assert mode in desc, f"batch mode {mode!r} missing from description"
-    for reasoning in ("raw", "medium", "high", "max"):
-        assert reasoning in desc, f"reasoning mode {reasoning!r} missing"
-
-
-def test_tool_description_signals_primacy() -> None:
-    """MCP tool description must start with PREFERRED marker for AI discovery."""
-    desc = mcp_server.TOOL_DESCRIPTION
-    assert desc.startswith("PREFERRED"), (
-        "TOOL_DESCRIPTION must begin with 'PREFERRED' so AI agents scanning tool "
-        "descriptions pick codex-images over the native imagegen tool for non-trivial work"
-    )
-
-
-# ---------------------------------------------------------------------------
-# Input schema drift pins
-# ---------------------------------------------------------------------------
-
-
-def test_input_schema_has_all_imagen_options_fields() -> None:
-    """Every ImagenOptions field must be exposed via the MCP schema.
-
-    This is a drift test: adding a knob to ImagenOptions without exposing
-    it here is the kind of silent omission that breaks AI clients in
-    confusing ways.
-    """
-    props = mcp_server.TOOL_INPUT_SCHEMA["properties"]
-    for field in dataclasses.fields(ImagenOptions):
-        assert field.name in props, (
-            f"ImagenOptions field {field.name!r} missing from MCP input schema"
-        )
-
-
-def test_input_schema_requires_prompt() -> None:
-    assert mcp_server.TOOL_INPUT_SCHEMA["required"] == ["prompt"]
-
-
-def test_input_schema_enums_match_validation() -> None:
-    """Enum lists in the schema must match core.py's _VALID_* constants."""
-    props = mcp_server.TOOL_INPUT_SCHEMA["properties"]
-    assert tuple(props["mode"]["enum"]) == _VALID_MODES
-    assert tuple(props["batch_mode"]["enum"]) == _VALID_BATCH_MODES
-    assert tuple(props["output_format"]["enum"]) == _VALID_OUTPUT_FORMATS
-
-
-def test_input_schema_each_property_has_description() -> None:
-    """AI clients surface descriptions to the model — every prop needs one."""
-    for name, spec in mcp_server.TOOL_INPUT_SCHEMA["properties"].items():
-        assert "description" in spec, f"property {name!r} missing description"
-
-
-# ---------------------------------------------------------------------------
-# call_tool dispatch
-# ---------------------------------------------------------------------------
-
-
-def test_call_tool_invokes_imagen_with_args(monkeypatch: pytest.MonkeyPatch) -> None:
-    captured: dict[str, Any] = {}
-
-    def fake_imagen(**kwargs: Any) -> ImagenResult:
-        captured.update(kwargs)
-        return _make_result(ok=True)
-
-    monkeypatch.setattr(mcp_server, "imagen", fake_imagen)
-
-    _run(mcp_server._call_tool("imagen", {"prompt": "cat", "count": 2}))
-    assert captured == {"prompt": "cat", "count": 2}
-
-
-def test_call_tool_returns_json_text_content(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(mcp_server, "imagen", lambda **kw: _make_result(ok=True))
-
-    out = _run(mcp_server._call_tool("imagen", {"prompt": "cat"}))
-    assert isinstance(out, list)
-    assert len(out) == 1
-    assert out[0].type == "text"
-
-    parsed = json.loads(out[0].text)
-    assert parsed["ok"] is True
-    assert parsed["batch_mode"] == "single"
-    assert len(parsed["images"]) == 1
-    # Paths must be stringified — JSON can't serialize PosixPath/WindowsPath.
-    assert isinstance(parsed["images"][0]["path"], str)
-    assert isinstance(parsed["manifest_path"], str)
-
-
-def test_call_tool_value_error_returns_ok_false_not_raise(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def bad_imagen(**kw: Any) -> ImagenResult:
-        raise ValueError("bad size")
-
-    monkeypatch.setattr(mcp_server, "imagen", bad_imagen)
-
-    out = _run(mcp_server._call_tool("imagen", {"prompt": "cat"}))
-    parsed = json.loads(out[0].text)
-    assert parsed["ok"] is False
-    assert parsed["error_type"] == "ValueError"
-    assert "bad size" in parsed["error"]
-
-
-def test_call_tool_type_error_returns_ok_false(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    def bad_imagen(**kw: Any) -> ImagenResult:
-        raise TypeError("unexpected keyword argument 'frobnicate'")
-
-    monkeypatch.setattr(mcp_server, "imagen", bad_imagen)
-
-    out = _run(mcp_server._call_tool("imagen", {"prompt": "x", "frobnicate": 1}))
-    parsed = json.loads(out[0].text)
-    assert parsed["ok"] is False
-    assert parsed["error_type"] == "TypeError"
-
-
-def test_call_tool_real_validation_error_surfaces_as_ok_false(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """End-to-end: a real ImagenOptions validation error becomes ok=false."""
-    # Don't monkeypatch — let the real imagen() raise from ImagenOptions.
-    out = _run(
-        mcp_server._call_tool("imagen", {"prompt": "cat", "mode": "bogus"})
-    )
-    parsed = json.loads(out[0].text)
-    assert parsed["ok"] is False
-    assert parsed["error_type"] == "ValueError"
-    assert "mode" in parsed["error"]
-
-
-def test_call_tool_unknown_tool_name_raises() -> None:
-    """Unknown tool names are a client bug — surface as a protocol error."""
-    with pytest.raises(ValueError, match="unknown tool"):
-        _run(mcp_server._call_tool("bogus", {}))
-
-
-def test_call_tool_non_dict_arguments_returns_ok_false(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Defensive: if the SDK ever hands us non-dict args, don't crash."""
-    # Hit _call_imagen_sync directly with a non-dict so we exercise the
-    # defensive branch without depending on SDK internals.
-    payload = mcp_server._call_imagen_sync("not a dict")  # type: ignore[arg-type]
-    parsed = json.loads(payload)
-    assert parsed["ok"] is False
-    assert parsed["error_type"] == "TypeError"
-
-
-# ---------------------------------------------------------------------------
-# Result serialization
-# ---------------------------------------------------------------------------
-
-
-def test_result_to_dict_paths_stringified() -> None:
-    result = _make_result(ok=True)
-    out = mcp_server._result_to_dict(result)
-    assert isinstance(out["manifest_path"], str)
-    assert isinstance(out["images"][0]["path"], str)
-    # ImagenImage.raw_png_path was None — must survive as None, not "None".
-    assert out["images"][0]["raw_png_path"] is None
-
-
-def test_result_to_dict_handles_failure_with_no_images() -> None:
-    result = _make_result(ok=False)
-    out = mcp_server._result_to_dict(result)
-    assert out["ok"] is False
-    assert out["images"] == []
-    assert out["manifest_path"] is None
-    assert out["error"] == "synthetic failure"
-
-
-def test_result_to_dict_is_json_serializable() -> None:
-    """Belt-and-suspenders: full round-trip through json.dumps."""
-    result = _make_result(ok=True)
-    out = mcp_server._result_to_dict(result)
-    encoded = json.dumps(out)
-    decoded = json.loads(encoded)
-    assert decoded["ok"] is True
-    assert decoded["images"][0]["bytes"] == 1234
-
-
-# ---------------------------------------------------------------------------
-# Server wiring
-# ---------------------------------------------------------------------------
-
-
-def test_server_name_is_codex_imagen() -> None:
+def test_server_name_is_codex_images():
     assert mcp_server.app.name == "codex-images"
 
 
-def test_main_is_callable() -> None:
-    """``main`` must exist and be the console-script entry point."""
-    assert callable(mcp_server.main)
+def test_lists_generation_and_artifact_tools():
+    tools = mcp_server.tools()
+    assert [tool.name for tool in tools] == ["codex_images", "codex_images_artifact"]
+    assert "codex-images.result/v2" in (tools[0].description or "")
+    assert tools[0].inputSchema["required"] == ["prompt"]
+    assert tools[1].inputSchema["required"] == ["uri"]
+
+
+def test_generation_returns_resource_link_and_local_path(tmp_path):
+    result = mcp_server.call_tool("codex_images", {"prompt": "blue"}, engine=_engine)
+    assert result.isError is False
+    assert isinstance(result.content[0], TextContent)
+    link = result.content[1]
+    assert isinstance(link, ResourceLink)
+    artifact = _structured(result)["artifacts"][0]
+    assert str(link.uri) == artifact["uri"]
+    assert artifact["uri"].startswith("mcp://codex-images/jobs/")
+    path = Path(artifact["path"])
+    assert path.is_relative_to(tmp_path)
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == artifact["sha256"]
+
+
+def test_artifact_tool_and_resource_return_the_same_bytes():
+    generated = mcp_server.call_tool("codex_images", {"prompt": "blue"}, engine=_engine)
+    uri = _structured(generated)["artifacts"][0]["uri"]
+    result = mcp_server.call_tool("codex_images_artifact", {"uri": uri})
+    assert result.isError is False
+    assert _structured(result)["schema_version"] == "codex-images.artifact/v1"
+    image = result.content[1]
+    assert isinstance(image, ImageContent) and image.mimeType == "image/png"
+    data = base64.b64decode(image.data)
+    assert mcp_server.read_resource(uri)[0].content == data
+    with Image.open(BytesIO(data)) as decoded:
+        assert decoded.size == (6, 4)
+
+
+def test_failed_input_is_an_error_result_not_an_exception():
+    result = mcp_server.call_tool("codex_images", {"prompt": "x", "references": ["/etc/hosts"]}, engine=_engine)
+    assert result.isError is True
+    assert _structured(result)["errors"][0]["code"] == "LOCAL_PATH_FORBIDDEN"
+
+
+def test_unknown_tool_is_an_error_result():
+    result = mcp_server.call_tool("imagen", {"prompt": "x"}, engine=_engine)
+    assert result.isError is True
+    assert _structured(result)["errors"][0]["code"] == "UNKNOWN_TOOL"
+
+
+def test_unknown_resource_raises_a_typed_error():
+    with pytest.raises(ValueError, match="ARTIFACT_READ_FAILED"):
+        mcp_server.read_resource("mcp://codex-images/jobs/nope/artifacts/0")

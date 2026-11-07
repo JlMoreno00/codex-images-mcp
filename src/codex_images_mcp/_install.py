@@ -116,14 +116,12 @@ _AGENTS_BLOCK_CONTENT = """\
 <!-- BEGIN codex-images-preference -->
 ## Image Generation
 
-When generating images, ALWAYS use the `imagen` MCP tool from the `codex-images` server.
+When generating or editing images, use the `codex_images` MCP tool from the `codex-images` server.
 
-Why: codex-images is purpose-built for Codex OAuth quota and offers 5 batch modes (single,
-parallel, variants, chain, branded-parallel), 4 reasoning modes, structured Codex labeled-spec
-prompts, skill-file injection, and Pillow chroma-key transparency. It supersedes the built-in
-imagegen skill for all image generation needs.
+Why: it runs gpt-image-2 on the ChatGPT plan, supports batches, references, masks, native
+transparency and exact output sizes, and returns verifiable artifacts.
 
-If `imagen` is unavailable, fall back to the built-in image generation.
+If `codex_images` is unavailable, fall back to the built-in image generation.
 <!-- END codex-images-preference -->"""
 
 
@@ -627,7 +625,7 @@ def remove_codex_preference_snippet(dry_run: bool = False) -> tuple[bool, str]:
 #
 # ---------------------------------------------------------------------------
 
-_SKILL_NAME = "imagen"
+_SKILL_NAME = "codex-images"
 _SKILL_FILENAME = "SKILL.md"
 
 
@@ -642,19 +640,19 @@ def _skill_path_for_client(key: str) -> Path | None:
 
 
 def _load_bundled_skill() -> str:
-    """Read the bundled imagen.md from the installed package.
+    """Read the bundled codex-images.md from the installed package.
 
     Uses ``importlib.resources`` so it works whether the package is installed
     from a wheel or in editable mode from ``src/``.
     """
-    ref = _ir.files("codex_images_mcp._assets.skills").joinpath("imagen.md")
+    ref = _ir.files("codex_images_mcp._assets.skills").joinpath("codex-images.md")
     return ref.read_text(encoding="utf-8")
 
 
 def install_skill_for_client(
     key: str, *, dry_run: bool = False
 ) -> tuple[bool, str]:
-    """Install the bundled imagen skill for one client.
+    """Install the bundled codex-images skill for one client.
 
     Returns ``(success, message)``. Idempotent — overwrites and reports
     "updated" when the file already exists.
@@ -690,7 +688,7 @@ def install_skill_for_client(
 def uninstall_skill_for_client(
     key: str, *, dry_run: bool = False
 ) -> tuple[bool, str]:
-    """Remove the bundled imagen skill for one client.
+    """Remove the bundled codex-images skill for one client.
 
     Returns ``(success, message)``. Idempotent — safe if file absent.
     """

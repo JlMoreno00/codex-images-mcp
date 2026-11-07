@@ -1,33 +1,11 @@
-"""codex_images_mcp — Codex-OAuth image generation toolkit.
+"""codex-images-mcp — MCP server for Codex Images on your ChatGPT plan.
 
-Public SDK entry points. The single user-facing function is :func:`imagen`,
-which orchestrates one or more image generations through the Codex OAuth
-bridge (``gpt-image-2`` via ``codex-image-gen``). It supports five batch
-modes (single, parallel, variants, chain, branded-parallel), structured
-Codex labeled-spec prompts, skill-file injection, and a Pillow chroma-key
-pipeline for transparency.
-
-This module re-exports the public surface only. Implementations live in
-:mod:`codex_images_mcp.core` (orchestration + dataclasses) and the private
-``_*`` submodules.
+The supported public surface is the MCP tools (``codex_images`` and
+``codex_images_artifact``) served over stdio or HTTP, plus the
+``codex-images-mcp`` setup CLI. Python modules are implementation details
+and carry no stability guarantee.
 """
-
-from __future__ import annotations
-
-from codex_images_mcp.core import (
-    ImagenHealth,
-    ImagenImage,
-    ImagenOptions,
-    ImagenResult,
-    imagen,
-)
 
 __version__ = "0.1.0"
 
-__all__ = [
-    "imagen",
-    "ImagenOptions",
-    "ImagenResult",
-    "ImagenImage",
-    "ImagenHealth",
-]
+__all__ = ["__version__"]

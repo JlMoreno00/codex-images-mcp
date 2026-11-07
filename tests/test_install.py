@@ -417,7 +417,7 @@ def test_write_agents_snippet_creates_file(
     content = agents_path.read_text(encoding="utf-8")
     assert "<!-- BEGIN codex-images-preference -->" in content
     assert "<!-- END codex-images-preference -->" in content
-    assert "ALWAYS use the `imagen` MCP tool" in content
+    assert "use the `codex_images` MCP tool" in content
 
 
 def test_write_agents_snippet_appends_to_existing(

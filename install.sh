@@ -69,4 +69,4 @@ UVX="${UVX:-uvx}"
 say "Running codex-images setup..."
 "$UVX" codex-images-mcp setup || die "codex-images setup failed."
 
-say "Done — your AI clients now know about imagen."
+say "Done — your AI clients now know about codex-images."

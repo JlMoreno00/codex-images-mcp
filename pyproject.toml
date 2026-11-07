@@ -37,7 +37,6 @@ classifiers = [
     "Development Status :: 4 - Beta",
 ]
 dependencies = [
-    "codex-image-gen >= 0.2.1",
     "Pillow >= 10.0",
     "click >= 8.1",
     "mcp >= 1.27, < 2",
@@ -50,10 +49,17 @@ Repository = "https://github.com/JlMoreno00/codex-images-mcp"
 Issues = "https://github.com/JlMoreno00/codex-images-mcp/issues"
 
 [project.optional-dependencies]
+http = [
+    "starlette >= 0.40",
+    "uvicorn >= 0.30",
+]
 dev = [
     "pytest >= 8",
     "pytest-mock",
     "pyyaml",
+    "httpx",
+    "starlette >= 0.40",
+    "uvicorn >= 0.30",
 ]
 
 [project.scripts]

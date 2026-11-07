@@ -81,4 +81,4 @@ try {
     exit 1
 }
 
-Write-Status "Done — your AI clients now know about imagen."
+Write-Status "Done — your AI clients now know about codex-images."
