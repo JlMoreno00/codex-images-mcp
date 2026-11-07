@@ -1,4 +1,4 @@
-"""codex_imagen._modes — the batch-generation orchestrator (5 modes).
+"""codex_images_mcp._modes — the batch-generation orchestrator (5 modes).
 
 Purpose
 -------

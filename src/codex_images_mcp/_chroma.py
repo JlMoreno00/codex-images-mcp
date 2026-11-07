@@ -1,4 +1,4 @@
-"""codex_imagen._chroma — Pillow chroma-key pipeline (solid backdrop -> alpha).
+"""codex_images_mcp._chroma — Pillow chroma-key pipeline (solid backdrop -> alpha).
 
 Purpose
 -------

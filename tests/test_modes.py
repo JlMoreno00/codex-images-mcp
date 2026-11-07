@@ -1,4 +1,4 @@
-"""Tests for ``codex_imagen._modes`` — the 5-mode batch orchestrator.
+"""Tests for ``codex_images_mcp._modes`` — the 5-mode batch orchestrator.
 
 All tests use fake callables (bridge_generate, prompt_build, chroma_keyout)
 that record their inputs and return predictable SimpleNamespace results.
@@ -23,7 +23,7 @@ SRC = Path(__file__).resolve().parent.parent / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from codex_imagen._modes import (  # noqa: E402
+from codex_images_mcp._modes import (  # noqa: E402
     ALL_MODES,
     BRANDED_BATCH_CONTEXT,
     CHAIN_ALL,

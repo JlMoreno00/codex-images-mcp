@@ -1,17 +1,17 @@
-"""codex_imagen.core — public dataclasses + orchestrator entry point.
+"""codex_images_mcp.core — public dataclasses + orchestrator entry point.
 
 This is the GLUE layer. It owns the public-facing dataclasses
 (:class:`ImagenOptions`, :class:`ImagenResult`, :class:`ImagenImage`,
 :class:`ImagenHealth`) and the single user-facing function
 :func:`imagen`. The actual work is delegated to the leaf modules:
 
-* :mod:`codex_imagen._bridge`   — health check + low-level bridge call
-* :mod:`codex_imagen._prompts`  — prompt builder (raw / medium / high / max)
-* :mod:`codex_imagen._size`     — size string validator
-* :mod:`codex_imagen._chroma`   — Pillow chroma-key pipeline
-* :mod:`codex_imagen._skills`   — skill file loader
-* :mod:`codex_imagen._modes`    — five-mode batch orchestration
-* :mod:`codex_imagen._manifest` — JSONL manifest writer
+* :mod:`codex_images_mcp._bridge`   — health check + low-level bridge call
+* :mod:`codex_images_mcp._prompts`  — prompt builder (raw / medium / high / max)
+* :mod:`codex_images_mcp._size`     — size string validator
+* :mod:`codex_images_mcp._chroma`   — Pillow chroma-key pipeline
+* :mod:`codex_images_mcp._skills`   — skill file loader
+* :mod:`codex_images_mcp._modes`    — five-mode batch orchestration
+* :mod:`codex_images_mcp._manifest` — JSONL manifest writer
 
 High-level flow inside :func:`imagen`::
 
@@ -41,10 +41,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from codex_imagen import _bridge, _chroma, _manifest, _modes, _prompts
-from codex_imagen import _size as _size_mod
-from codex_imagen import _skills as _skills_mod
-from codex_imagen._prompts import resolve_auto_mode
+from codex_images_mcp import _bridge, _chroma, _manifest, _modes, _prompts
+from codex_images_mcp import _size as _size_mod
+from codex_images_mcp import _skills as _skills_mod
+from codex_images_mcp._prompts import resolve_auto_mode
 
 # ---------------------------------------------------------------------------
 # Public dataclasses

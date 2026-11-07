@@ -1,4 +1,4 @@
-"""codex_imagen._prompts — prompt + instructions builder for the Codex bridge.
+"""codex_images_mcp._prompts — prompt + instructions builder for the Codex bridge.
 
 Purpose
 -------

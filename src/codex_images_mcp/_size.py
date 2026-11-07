@@ -1,4 +1,4 @@
-"""codex_imagen._size — size string validator + nearest-legal suggestion.
+"""codex_images_mcp._size — size string validator + nearest-legal suggestion.
 
 Purpose
 -------
@@ -38,7 +38,7 @@ Public surface
 
 Usage example
 -------------
->>> from codex_imagen._size import validate
+>>> from codex_images_mcp._size import validate
 >>> v = validate("800x800")
 >>> v.is_valid
 False

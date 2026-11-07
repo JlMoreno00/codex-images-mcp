@@ -1,7 +1,7 @@
-# install.ps1 — bootstrap uv (if needed) and run codex-imagen setup
+# install.ps1 — bootstrap uv (if needed) and run codex-images setup
 #
 # Usage:
-#   iwr https://raw.githubusercontent.com/VelmoAI/codex-imagen/main/install.ps1 | iex
+#   iwr https://raw.githubusercontent.com/JlMoreno00/codex-images-mcp/main/install.ps1 | iex
 #
 # Requires Windows PowerShell 5.1+ or PowerShell 7+.
 $ErrorActionPreference = "Stop"
@@ -52,7 +52,7 @@ if ($null -ne $uvxCmd) {
             $uvxCmd = $fallback
             Write-Status "Found uvx at: $fallback"
         } else {
-            Write-Error "uvx was installed but could not be found on PATH. Please open a new shell and run: uvx codex-imagen setup"
+            Write-Error "uvx was installed but could not be found on PATH. Please open a new shell and run: uvx codex-images-mcp setup"
             exit 1
         }
     }
@@ -66,18 +66,18 @@ if ($uvxCmd -is [System.Management.Automation.CommandInfo]) {
 }
 
 # ---------------------------------------------------------------------------
-# 2. Run codex-imagen setup
+# 2. Run codex-images setup
 # ---------------------------------------------------------------------------
 
-Write-Status "Running codex-imagen setup..."
+Write-Status "Running codex-images setup..."
 try {
-    & $uvxPath codex-imagen setup
+    & $uvxPath codex-images-mcp setup
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "codex-imagen setup exited with code $LASTEXITCODE"
+        Write-Error "codex-images setup exited with code $LASTEXITCODE"
         exit $LASTEXITCODE
     }
 } catch {
-    Write-Error "codex-imagen setup failed: $_"
+    Write-Error "codex-images setup failed: $_"
     exit 1
 }
 

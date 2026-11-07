@@ -1,6 +1,6 @@
-"""codex_imagen.cli — Click-based CLI with dual-mode (human / JSON) output.
+"""codex_images_mcp.cli — Click-based CLI with dual-mode (human / JSON) output.
 
-This module wires the :func:`codex_imagen.imagen` SDK entry point into a
+This module wires the :func:`codex_images_mcp.imagen` SDK entry point into a
 console script named ``imagen``. It is the single user-facing CLI surface.
 
 Dual-mode design
@@ -37,7 +37,7 @@ Exit codes
   ``=``, malformed ``--prompt-json`` file, no input at all). Click's own
   parameter validation still exits with its default code (2).
 
-The flags map 1:1 to :class:`codex_imagen.ImagenOptions` so there is no
+The flags map 1:1 to :class:`codex_images_mcp.ImagenOptions` so there is no
 hidden behavior between CLI and SDK.
 
 Subcommands
@@ -57,8 +57,8 @@ from typing import Any
 
 import click
 
-from codex_imagen import __version__, _bridge
-from codex_imagen.core import ImagenResult, imagen
+from codex_images_mcp import __version__, _bridge
+from codex_images_mcp.core import ImagenResult, imagen
 
 # ---------------------------------------------------------------------------
 # Constants — exit codes are the SPEC contract; centralising them keeps the
@@ -773,7 +773,7 @@ def _styled(text: str, **kwargs: Any) -> str:
 
 def _print_client_table(statuses: list) -> None:  # type: ignore[type-arg]
     """Print a formatted table of client detection and install status."""
-    from codex_imagen._install import ClientStatus
+    from codex_images_mcp._install import ClientStatus
 
     header = (
         f"{'#':<3}  {'Client':<16}  {'Detected':<10}  {'Installed':<10}  Config"
@@ -796,11 +796,11 @@ def _print_client_table(statuses: list) -> None:  # type: ignore[type-arg]
 
 @click.command(name="status")
 def _status_command() -> None:
-    """Show detected MCP clients and whether codex-imagen is registered."""
-    from codex_imagen._install import detect_clients, skill_status_for_client
+    """Show detected MCP clients and whether codex-images is registered."""
+    from codex_images_mcp._install import detect_clients, skill_status_for_client
 
     statuses = detect_clients()
-    click.echo("codex-imagen MCP installer — client status\n")
+    click.echo("codex-images MCP installer — client status\n")
     _print_client_table(statuses)
     click.echo()
     installed_count = sum(1 for s in statuses if s.installed)
@@ -856,12 +856,12 @@ def _status_command() -> None:
     help="Show what would happen without making any changes.",
 )
 def _setup_command(install_all: bool, clients: tuple[str, ...], dry_run: bool) -> None:
-    """Register codex-imagen MCP in one or more AI clients.
+    """Register codex-images MCP in one or more AI clients.
 
     Run without flags for an interactive walkthrough. Use --all to install
     for every detected client, or --client NAME to target specific clients.
     """
-    from codex_imagen._install import (
+    from codex_images_mcp._install import (
         ClientStatus,
         detect_clients,
         install_for_client,
@@ -885,7 +885,7 @@ def _setup_command(install_all: bool, clients: tuple[str, ...], dry_run: bool) -
             sys.exit(0)
     else:
         # Interactive walkthrough.
-        click.echo("codex-imagen MCP installer\n")
+        click.echo("codex-images MCP installer\n")
         _print_client_table(all_statuses)
         click.echo()
 
@@ -936,7 +936,7 @@ def _setup_command(install_all: bool, clients: tuple[str, ...], dry_run: bool) -
         # Confirmation.
         name_map = {s.key: s.name for s in all_statuses}
         names = ", ".join(name_map.get(k, k) for k in target_keys)
-        click.echo(f"\nWill install codex-imagen MCP for: {names}")
+        click.echo(f"\nWill install codex-images MCP for: {names}")
         if not click.confirm("Proceed?", default=True):
             click.echo("Aborted.")
             sys.exit(0)
@@ -945,7 +945,7 @@ def _setup_command(install_all: bool, clients: tuple[str, ...], dry_run: bool) -
     click.echo()
     success_count = 0
     codex_selected = "codex" in target_keys
-    from codex_imagen._install import install_skill_for_client
+    from codex_images_mcp._install import install_skill_for_client
     for key in target_keys:
         ok, msg = install_for_client(key, dry_run=dry_run)
         prefix = _styled("[OK]", fg="green") if ok else _styled("[FAIL]", fg="red")
@@ -962,8 +962,8 @@ def _setup_command(install_all: bool, clients: tuple[str, ...], dry_run: bool) -
         # Interactive: ask the user.
         click.echo()
         if click.confirm(
-            "Add codex-imagen preference instruction to ~/.codex/AGENTS.md "
-            "(so the AI prefers codex-imagen over the built-in imagegen)?",
+            "Add codex-images preference instruction to ~/.codex/AGENTS.md "
+            "(so the AI prefers codex-images over the built-in imagegen)?",
             default=True,
         ):
             ok, msg = write_codex_preference_snippet(dry_run=dry_run)
@@ -1016,8 +1016,8 @@ def _setup_command(install_all: bool, clients: tuple[str, ...], dry_run: bool) -
 def _uninstall_command(
     uninstall_all: bool, clients: tuple[str, ...], dry_run: bool
 ) -> None:
-    """Remove the codex-imagen MCP registration from AI clients."""
-    from codex_imagen._install import (
+    """Remove the codex-images MCP registration from AI clients."""
+    from codex_images_mcp._install import (
         detect_clients,
         remove_codex_preference_snippet,
         uninstall_for_client,
@@ -1033,17 +1033,17 @@ def _uninstall_command(
     elif uninstall_all:
         target_keys = [s.key for s in all_statuses if s.installed]
         if not target_keys:
-            click.echo("codex-imagen is not installed in any detected client.")
+            click.echo("codex-images is not installed in any detected client.")
             sys.exit(0)
     else:
         # Interactive.
-        click.echo("codex-imagen MCP uninstaller\n")
+        click.echo("codex-images MCP uninstaller\n")
         _print_client_table(all_statuses)
         click.echo()
 
         installed_keys = [s.key for s in all_statuses if s.installed]
         if not installed_keys:
-            click.echo("codex-imagen is not installed in any detected client.")
+            click.echo("codex-images is not installed in any detected client.")
             sys.exit(0)
 
         click.echo(
@@ -1076,7 +1076,7 @@ def _uninstall_command(
 
         name_map = {s.key: s.name for s in all_statuses}
         names = ", ".join(name_map.get(k, k) for k in target_keys)
-        click.echo(f"\nWill remove codex-imagen MCP from: {names}")
+        click.echo(f"\nWill remove codex-images MCP from: {names}")
         if not click.confirm("Proceed?", default=True):
             click.echo("Aborted.")
             sys.exit(0)
@@ -1084,7 +1084,7 @@ def _uninstall_command(
     click.echo()
     success_count = 0
     codex_selected = "codex" in target_keys
-    from codex_imagen._install import uninstall_skill_for_client
+    from codex_images_mcp._install import uninstall_skill_for_client
     for key in target_keys:
         ok, msg = uninstall_for_client(key, dry_run=dry_run)
         prefix = _styled("[OK]", fg="green") if ok else _styled("[FAIL]", fg="red")
@@ -1140,9 +1140,9 @@ def _imagen_group(ctx: click.Context) -> None:
     Run without a subcommand to generate images. Subcommands:
 
     \b
-      setup      Register codex-imagen MCP in your AI clients
+      setup      Register codex-images MCP in your AI clients
       uninstall  Remove the MCP registration
-      status     Show which clients have codex-imagen installed
+      status     Show which clients have codex-images installed
 
     Examples:
 

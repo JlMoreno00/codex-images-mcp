@@ -1,4 +1,4 @@
-"""Tests for codex_imagen._skills.
+"""Tests for codex_images_mcp._skills.
 
 Filesystem isolation via pytest's tmp_path fixture. We never write under
 the real home dir or the real cwd; discovery tests use ``extra_dirs=`` or
@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from codex_imagen._skills import (
+from codex_images_mcp._skills import (
     LoadedSkill,
     SkillBundle,
     discover_skills,

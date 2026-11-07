@@ -1,14 +1,14 @@
-"""Tests for codex_imagen.core.imagen() and ImagenOptions.
+"""Tests for codex_images_mcp.core.imagen() and ImagenOptions.
 
 All tests monkeypatch the bridge layer; nothing here calls a real API.
 The strategy:
 
-* ``codex_imagen.core._bridge.health_check`` is patched to return a known
+* ``codex_images_mcp.core._bridge.health_check`` is patched to return a known
   health dict.
-* ``codex_imagen.core._bridge.generate`` is patched with a fake that writes
+* ``codex_images_mcp.core._bridge.generate`` is patched with a fake that writes
   a tiny PNG to ``output_path`` and returns a ``BridgeResult``-shaped
   ``SimpleNamespace``.
-* ``codex_imagen.core._chroma.keyout`` is patched in transparency tests
+* ``codex_images_mcp.core._chroma.keyout`` is patched in transparency tests
   with a fake that just copies the raw file to the destination.
 
 The fakes mirror the contracts of the real bridge/chroma functions
@@ -25,8 +25,8 @@ from typing import Any
 
 import pytest
 
-from codex_imagen import core
-from codex_imagen.core import ImagenImage, ImagenOptions, ImagenResult, imagen
+from codex_images_mcp import core
+from codex_images_mcp.core import ImagenImage, ImagenOptions, ImagenResult, imagen
 
 
 # ---------------------------------------------------------------------------
@@ -675,8 +675,8 @@ def test_imagen_manifest_write_failure_demoted_to_warning(
 
 
 def test_imagen_importable_from_package() -> None:
-    import codex_imagen
+    import codex_images_mcp
 
-    assert codex_imagen.imagen is imagen
-    assert codex_imagen.ImagenOptions is ImagenOptions
-    assert codex_imagen.ImagenResult is ImagenResult
+    assert codex_images_mcp.imagen is imagen
+    assert codex_images_mcp.ImagenOptions is ImagenOptions
+    assert codex_images_mcp.ImagenResult is ImagenResult

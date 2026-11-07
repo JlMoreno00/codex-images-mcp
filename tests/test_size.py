@@ -1,4 +1,4 @@
-"""Unit tests for ``codex_imagen._size``.
+"""Unit tests for ``codex_images_mcp._size``.
 
 The validator is pure stdlib geometry — no network, no Pillow, no
 bridge. So the tests can hammer it with arbitrary inputs cheaply.
@@ -19,7 +19,7 @@ import string
 
 import pytest
 
-from codex_imagen._size import (
+from codex_images_mcp._size import (
     AXIS_MULTIPLE,
     COMMON_SIZES,
     EXPERIMENTAL_THRESHOLD,

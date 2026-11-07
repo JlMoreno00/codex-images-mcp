@@ -1,4 +1,4 @@
-"""codex_imagen — Codex-OAuth image generation toolkit.
+"""codex_images_mcp — Codex-OAuth image generation toolkit.
 
 Public SDK entry points. The single user-facing function is :func:`imagen`,
 which orchestrates one or more image generations through the Codex OAuth
@@ -8,13 +8,13 @@ Codex labeled-spec prompts, skill-file injection, and a Pillow chroma-key
 pipeline for transparency.
 
 This module re-exports the public surface only. Implementations live in
-:mod:`codex_imagen.core` (orchestration + dataclasses) and the private
+:mod:`codex_images_mcp.core` (orchestration + dataclasses) and the private
 ``_*`` submodules.
 """
 
 from __future__ import annotations
 
-from codex_imagen.core import (
+from codex_images_mcp.core import (
     ImagenHealth,
     ImagenImage,
     ImagenOptions,

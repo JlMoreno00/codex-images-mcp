@@ -1,4 +1,4 @@
-"""codex_imagen._skills — file-path skill loader.
+"""codex_images_mcp._skills — file-path skill loader.
 
 Purpose
 -------
@@ -7,7 +7,7 @@ reference by file path via the ``skills=`` parameter. This module reads
 those files, strips optional YAML frontmatter, concatenates the bodies
 with a sentinel separator, and returns a hash for drift detection.
 
-The concatenated body is later passed to :func:`codex_imagen._prompts.build`
+The concatenated body is later passed to :func:`codex_images_mcp._prompts.build`
 as ``skills_body``. This module is intentionally bridge-agnostic — it does
 not import ``_bridge``, ``_prompts``, ``_chroma``, or ``codex_image_gen``.
 Pure stdlib, pure functions of (paths -> text).

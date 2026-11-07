@@ -7,7 +7,7 @@ description: Primary image-generation tool — use for ALL image creation, editi
 
 ## When to prefer this over native image_gen
 
-Prefer codex-imagen (this skill) when ANY of these are true:
+Prefer codex-images (this skill) when ANY of these are true:
 - More than one image is needed in the task (use `batch_mode="parallel"` or `branded-parallel`)
 - Brand consistency across images matters (use `batch_mode="branded-parallel"` with an anchor)
 - The user wants transparent cut-outs (better chroma than the built-in default — green key + dominance despill, 54× cleaner on fur)
@@ -25,7 +25,7 @@ The native Codex skill is named `imagegen` (at `~/.codex/skills/.system/imagegen
 
 ## What this is
 
-`codex-imagen` generates images through the Codex OAuth bridge. It uses the local
+`codex-images` generates images through the Codex OAuth bridge. It uses the local
 `~/.codex/auth.json` token (your ChatGPT subscription quota). No `OPENAI_API_KEY`
 needed. One engine, three interfaces: MCP tool, CLI, Python SDK.
 
@@ -35,7 +35,7 @@ needed. One engine, three interfaces: MCP tool, CLI, Python SDK.
 
 | Interface | Invocation |
 |---|---|
-| MCP tool | `mcp__codex-imagen__imagen` |
+| MCP tool | `mcp__codex-images__imagen` |
 | CLI | `imagen "prompt" [flags]` |
 | Python SDK | `from codex_imagen import imagen` then `imagen(prompt=..., ...)` |
 

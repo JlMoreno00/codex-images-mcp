@@ -1,4 +1,4 @@
-"""Tests for codex_imagen._chroma — chroma-key pipeline.
+"""Tests for codex_images_mcp._chroma — chroma-key pipeline.
 
 All test imagery is synthesized in-memory with Pillow, so the suite has no
 on-disk fixtures and is fully hermetic. Both the NumPy fast path and the
@@ -22,8 +22,8 @@ _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from codex_imagen import _chroma  # noqa: E402
-from codex_imagen._chroma import (  # noqa: E402
+from codex_images_mcp import _chroma  # noqa: E402
+from codex_images_mcp._chroma import (  # noqa: E402
     ChromaResult,
     DEFAULT_KEY_RGB,
     KEY_PRESETS,
@@ -553,7 +553,7 @@ def test_edge_erode_px_two_erodes_more_aggressively(tmp_path: Path) -> None:
     dst2 = tmp_path / "erode2.png"
     _make_half_image(src, left=(0, 255, 0), right=(255, 0, 0), size=(200, 200))
 
-    from codex_imagen._chroma import _pixel_stats
+    from codex_images_mcp._chroma import _pixel_stats
 
     keyout(src, dst1, feather_px=0, edge_erode_px=1, auto_key=None)
     keyout(src, dst2, feather_px=0, edge_erode_px=2, auto_key=None)
@@ -690,7 +690,7 @@ def test_auto_key_handles_model_drift(tmp_path: Path) -> None:
 
 def test_dual_threshold_fully_transparent_at_low_distance(tmp_path: Path) -> None:
     """Pixels at distance ≤ transparent_threshold → alpha=0."""
-    from codex_imagen._chroma import _soft_alpha_dual
+    from codex_images_mcp._chroma import _soft_alpha_dual
 
     # At distance = transparent_threshold (12), alpha must be 0.
     assert _soft_alpha_dual(12, 12.0, 220.0) == 0
@@ -700,7 +700,7 @@ def test_dual_threshold_fully_transparent_at_low_distance(tmp_path: Path) -> Non
 
 def test_dual_threshold_fully_opaque_at_high_distance(tmp_path: Path) -> None:
     """Pixels at distance ≥ opaque_threshold → alpha=255."""
-    from codex_imagen._chroma import _soft_alpha_dual
+    from codex_images_mcp._chroma import _soft_alpha_dual
 
     assert _soft_alpha_dual(220, 12.0, 220.0) == 255
     assert _soft_alpha_dual(255, 12.0, 220.0) == 255
@@ -708,7 +708,7 @@ def test_dual_threshold_fully_opaque_at_high_distance(tmp_path: Path) -> None:
 
 def test_dual_threshold_smoothstep_in_between(tmp_path: Path) -> None:
     """Pixels in the transition zone get a smoothstepped alpha in (0, 255)."""
-    from codex_imagen._chroma import _soft_alpha_dual
+    from codex_images_mcp._chroma import _soft_alpha_dual
 
     # Midpoint between 12 and 220.
     mid = (12 + 220) // 2
@@ -728,7 +728,7 @@ def test_dominance_capping_despill_green_key(tmp_path: Path) -> None:
     """For green key: a pixel with G=200, R=50, B=50 should have G capped to
     max(non-spill) - 1 = max(R, B) - 1 = 50 - 1 = 49 after dominance despill.
     """
-    from codex_imagen._chroma import _cleanup_spill_dominance
+    from codex_images_mcp._chroma import _cleanup_spill_dominance
 
     key = (0, 255, 0)  # green
     # G is the spill channel; R and B are non-spill.
@@ -746,7 +746,7 @@ def test_dominance_capping_despill_magenta_key(tmp_path: Path) -> None:
     """For magenta key (#FF00FF): R and B are spill channels.
     A pixel (200, 50, 200) should have R and B capped to ≤ G - 1 = 49.
     """
-    from codex_imagen._chroma import _cleanup_spill_dominance
+    from codex_images_mcp._chroma import _cleanup_spill_dominance
 
     key = (255, 0, 255)  # magenta
     # R and B are spill channels; G is non-spill.
@@ -760,7 +760,7 @@ def test_dominance_capping_despill_magenta_key(tmp_path: Path) -> None:
 
 def test_dominance_capping_despill_fully_opaque_untouched() -> None:
     """Fully opaque pixels (alpha ≥ 252) must NOT be despilled."""
-    from codex_imagen._chroma import _cleanup_spill_dominance
+    from codex_images_mcp._chroma import _cleanup_spill_dominance
 
     key = (0, 255, 0)
     rgb = (50, 200, 50)

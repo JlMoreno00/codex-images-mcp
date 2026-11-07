@@ -1,11 +1,11 @@
-"""Tests for codex_imagen.cli — the Click dual-mode CLI.
+"""Tests for codex_images_mcp.cli — the Click dual-mode CLI.
 
 Strategy
 --------
 All tests use Click's :class:`CliRunner`. We monkeypatch
-``codex_imagen.cli.imagen`` to return a deterministic :class:`ImagenResult`
+``codex_images_mcp.cli.imagen`` to return a deterministic :class:`ImagenResult`
 so no real bridge or filesystem image is required, and we monkeypatch
-``codex_imagen.cli._bridge.health_check`` for the ``--health`` tests.
+``codex_images_mcp.cli._bridge.health_check`` for the ``--health`` tests.
 
 We test the dual-mode contract (JSON vs pretty), the parsing of
 repeatable key=value flags (``--var``, ``--advanced``), the prompt input
@@ -22,8 +22,8 @@ from typing import Any
 import pytest
 from click.testing import CliRunner
 
-from codex_imagen import cli as cli_mod
-from codex_imagen.core import ImagenHealth, ImagenImage, ImagenResult
+from codex_images_mcp import cli as cli_mod
+from codex_images_mcp.core import ImagenHealth, ImagenImage, ImagenResult
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ def _fail_result_generation(tmp_path: Path) -> ImagenResult:
 class FakeImagen:
     """Records its kwargs and returns a pre-baked ImagenResult.
 
-    The CLI calls :func:`codex_imagen.cli.imagen`, which we monkeypatch
+    The CLI calls :func:`codex_images_mcp.cli.imagen`, which we monkeypatch
     onto an instance of this class. Tests can later inspect ``self.calls``
     to assert what the CLI actually passed through.
     """
@@ -146,7 +146,7 @@ def test_cli_version_prints_version(runner: CliRunner) -> None:
     """--version emits the package version and exits 0."""
     result = runner.invoke(cli_mod._imagen_command, ["--version"])
     assert result.exit_code == 0
-    from codex_imagen import __version__
+    from codex_images_mcp import __version__
 
     assert __version__ in result.output
 
@@ -602,7 +602,7 @@ def test_status_command_runs_without_errors(
     tmp_path: Path,
 ) -> None:
     """``imagen status`` prints a table and exits 0 without modifying anything."""
-    import codex_imagen._install as _install_mod
+    import codex_images_mcp._install as _install_mod
 
     monkeypatch.setattr(_install_mod, "_home", lambda: tmp_path)
     monkeypatch.setenv("APPDATA", str(tmp_path / "AppData" / "Roaming"))
@@ -620,7 +620,7 @@ def test_setup_dry_run_all_reports_plan(
     tmp_path: Path,
 ) -> None:
     """``imagen setup --dry-run --all`` prints a dry-run plan and exits 0."""
-    import codex_imagen._install as _install_mod
+    import codex_images_mcp._install as _install_mod
     import shutil
 
     monkeypatch.setattr(_install_mod, "_home", lambda: tmp_path)
@@ -642,7 +642,7 @@ def test_setup_dry_run_specific_client(
     tmp_path: Path,
 ) -> None:
     """``imagen setup --dry-run --client claude-code`` works without changes."""
-    import codex_imagen._install as _install_mod
+    import codex_images_mcp._install as _install_mod
 
     monkeypatch.setattr(_install_mod, "_home", lambda: tmp_path)
     monkeypatch.setenv("APPDATA", str(tmp_path / "AppData" / "Roaming"))
@@ -664,7 +664,7 @@ def test_uninstall_dry_run_all_no_changes(
     tmp_path: Path,
 ) -> None:
     """``imagen uninstall --dry-run --all`` exits 0 and changes nothing."""
-    import codex_imagen._install as _install_mod
+    import codex_images_mcp._install as _install_mod
     import shutil
 
     monkeypatch.setattr(_install_mod, "_home", lambda: tmp_path)
@@ -673,7 +673,7 @@ def test_uninstall_dry_run_all_no_changes(
 
     # Install first so there's something installed.
     import json as _json
-    config = {"mcpServers": {"codex-imagen": {"command": "codex-imagen-mcp"}}}
+    config = {"mcpServers": {"codex-images": {"command": "codex-images-mcp-server"}}}
     (tmp_path / ".claude.json").write_text(_json.dumps(config), encoding="utf-8")
 
     result = runner.invoke(cli_mod._uninstall_command, ["--dry-run", "--all"])
@@ -682,4 +682,4 @@ def test_uninstall_dry_run_all_no_changes(
     assert "dry-run" in combined.lower()
     # Config must be unchanged.
     data = _json.loads((tmp_path / ".claude.json").read_text())
-    assert "codex-imagen" in data["mcpServers"]
+    assert "codex-images" in data["mcpServers"]

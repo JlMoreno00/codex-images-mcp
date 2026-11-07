@@ -3,14 +3,15 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "codex-imagen"
+name = "codex-images-mcp"
 version = "0.1.0"
-description = "Codex-OAuth image generation toolkit: SDK + CLI + MCP server"
+description = "Self-hosted MCP server for Codex Images (gpt-image-2 on your ChatGPT plan): stdio and HTTP, verifiable artifacts, masks"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "wauwa" },
+    { name = "JlMoreno00" },
 ]
 keywords = [
     "image generation",
@@ -39,14 +40,14 @@ dependencies = [
     "codex-image-gen >= 0.2.1",
     "Pillow >= 10.0",
     "click >= 8.1",
-    "mcp >= 1.0",
+    "mcp >= 1.27, < 2",
     "tomli-w >= 1.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/VelmoAI/codex-imagen"
-Repository = "https://github.com/VelmoAI/codex-imagen"
-Issues = "https://github.com/VelmoAI/codex-imagen/issues"
+Homepage = "https://github.com/JlMoreno00/codex-images-mcp"
+Repository = "https://github.com/JlMoreno00/codex-images-mcp"
+Issues = "https://github.com/JlMoreno00/codex-images-mcp/issues"
 
 [project.optional-dependencies]
 dev = [
@@ -56,11 +57,11 @@ dev = [
 ]
 
 [project.scripts]
-imagen = "codex_imagen.cli:main_group"
-codex-imagen-mcp = "codex_imagen.mcp_server:main"
+codex-images-mcp = "codex_images_mcp.cli:main_group"
+codex-images-mcp-server = "codex_images_mcp.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/codex_imagen"]
+packages = ["src/codex_images_mcp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

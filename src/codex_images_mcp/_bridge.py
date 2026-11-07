@@ -1,8 +1,8 @@
-"""codex_imagen._bridge — defensive wrapper around codex_image_gen.generate_image.
+"""codex_images_mcp._bridge — defensive wrapper around codex_image_gen.generate_image.
 
 Purpose
 -------
-This module is the *single* place in ``codex_imagen`` that actually talks to
+This module is the *single* place in ``codex_images_mcp`` that actually talks to
 the Codex OAuth bridge via the upstream ``codex-image-gen`` library. Every
 higher-level feature (modes, chain, branded-parallel, chroma key, CLI, MCP
 server) goes through :func:`generate` here.

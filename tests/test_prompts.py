@@ -1,4 +1,4 @@
-"""Tests for codex_imagen._prompts.
+"""Tests for codex_images_mcp._prompts.
 
 Pure tests — no bridge, no I/O, no fixtures needed. We rely on the public
 surface (build, render_prompt, BuiltPrompt) and the load-bearing constants.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from codex_imagen._prompts import (
+from codex_images_mcp._prompts import (
     ANTI_REFINEMENT_INSTRUCTIONS,
     CHROMA_BLOCK_TEMPLATE,
     CODEX_LABELED_SPEC_PREAMBLE,

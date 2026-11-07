@@ -1,4 +1,4 @@
-"""Tests for ``codex_imagen._bridge``.
+"""Tests for ``codex_images_mcp._bridge``.
 
 All tests stub ``codex_image_gen.generate_image`` via monkeypatch — there
 are absolutely no real API calls here. Health-check tests fake the local
@@ -22,8 +22,8 @@ SRC = Path(__file__).resolve().parent.parent / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from codex_imagen import _bridge  # noqa: E402
-from codex_imagen._bridge import (  # noqa: E402
+from codex_images_mcp import _bridge  # noqa: E402
+from codex_images_mcp._bridge import (  # noqa: E402
     BridgeError,
     BridgeResult,
     BridgeUnavailableError,
@@ -648,7 +648,7 @@ def test_wall_clock_timeout_flows_from_imagen_options(
     direct test would require inspecting the kwargs inside the executor but
     that would be brittle given the ThreadPoolExecutor wrapping.
     """
-    from codex_imagen.core import ImagenOptions
+    from codex_images_mcp.core import ImagenOptions
 
     opts = ImagenOptions(
         prompt="a red sphere",

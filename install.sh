@@ -1,8 +1,8 @@
 #!/bin/sh
-# install.sh — bootstrap uv (if needed) and run codex-imagen setup
+# install.sh — bootstrap uv (if needed) and run codex-images setup
 #
 # Usage:
-#   curl -fsSL https://raw.githubusercontent.com/VelmoAI/codex-imagen/main/install.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/JlMoreno00/codex-images-mcp/main/install.sh | sh
 #
 # POSIX-compatible (sh, bash, zsh, dash).  No bashisms.
 set -eu
@@ -54,7 +54,7 @@ else
         if [ -x "$HOME/.local/bin/uvx" ]; then
             UVX="$HOME/.local/bin/uvx"
         else
-            die "uvx was installed but could not be found on PATH. Please open a new shell and run: uvx codex-imagen setup"
+            die "uvx was installed but could not be found on PATH. Please open a new shell and run: uvx codex-images-mcp setup"
         fi
     fi
 fi
@@ -63,10 +63,10 @@ fi
 UVX="${UVX:-uvx}"
 
 # ---------------------------------------------------------------------------
-# 2. Run codex-imagen setup
+# 2. Run codex-images setup
 # ---------------------------------------------------------------------------
 
-say "Running codex-imagen setup..."
-"$UVX" codex-imagen setup || die "codex-imagen setup failed."
+say "Running codex-images setup..."
+"$UVX" codex-images-mcp setup || die "codex-images setup failed."
 
 say "Done — your AI clients now know about imagen."

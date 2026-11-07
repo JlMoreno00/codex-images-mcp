@@ -1,4 +1,4 @@
-"""Tests for :mod:`codex_imagen.mcp_server`.
+"""Tests for :mod:`codex_images_mcp.mcp_server`.
 
 Strategy
 --------
@@ -19,12 +19,12 @@ import asyncio
 import dataclasses
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
-from codex_imagen import mcp_server
-from codex_imagen.core import (
+from codex_images_mcp import mcp_server
+from codex_images_mcp.core import (
     ImagenHealth,
     ImagenImage,
     ImagenOptions,
@@ -80,7 +80,7 @@ def _make_result(ok: bool = True) -> ImagenResult:
 
 
 def test_list_tools_returns_one_tool_named_imagen() -> None:
-    tools = _run(mcp_server._list_tools())
+    tools = _run(cast(Any, mcp_server._list_tools)())
     assert isinstance(tools, list)
     assert len(tools) == 1
     assert tools[0].name == "imagen"
@@ -100,7 +100,7 @@ def test_tool_description_signals_primacy() -> None:
     desc = mcp_server.TOOL_DESCRIPTION
     assert desc.startswith("PREFERRED"), (
         "TOOL_DESCRIPTION must begin with 'PREFERRED' so AI agents scanning tool "
-        "descriptions pick codex-imagen over the native imagegen tool for non-trivial work"
+        "descriptions pick codex-images over the native imagegen tool for non-trivial work"
     )
 
 
@@ -276,7 +276,7 @@ def test_result_to_dict_is_json_serializable() -> None:
 
 
 def test_server_name_is_codex_imagen() -> None:
-    assert mcp_server.app.name == "codex-imagen"
+    assert mcp_server.app.name == "codex-images"
 
 
 def test_main_is_callable() -> None:

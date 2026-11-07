@@ -1,13 +1,13 @@
-"""codex_imagen.mcp_server — stdio MCP server exposing a single ``imagen`` tool.
+"""codex_images_mcp.mcp_server — stdio MCP server exposing a single ``imagen`` tool.
 
-This module wires the :func:`codex_imagen.imagen` SDK entry point into a
+This module wires the :func:`codex_images_mcp.imagen` SDK entry point into a
 stdio-based Model Context Protocol server so AI clients (Claude Desktop,
 Cursor, etc.) can invoke image generation as a structured tool call.
 
 Design notes
 ------------
 * **One tool, one surface.** We expose exactly one tool named ``imagen``.
-  Its JSON Schema mirrors :class:`codex_imagen.ImagenOptions` field-for-field,
+  Its JSON Schema mirrors :class:`codex_images_mcp.ImagenOptions` field-for-field,
   including the enum constraints for ``mode`` / ``batch_mode`` /
   ``output_format``. The schema is the contract — adding a knob to
   ``ImagenOptions`` REQUIRES adding it here, and a drift test pins this.
@@ -15,7 +15,7 @@ Design notes
 * **Errors are results, not exceptions.** Per SPEC.md the ``imagen`` contract
   guarantees ``ok=False`` + actionable hint on failure rather than crashing.
   We honor that at the MCP layer too: ``ValueError`` / ``TypeError`` raised
-  by :class:`codex_imagen.ImagenOptions` (bad args) and by :func:`imagen`
+  by :class:`codex_images_mcp.ImagenOptions` (bad args) and by :func:`imagen`
   itself are caught and surfaced as JSON ``{ok: false, error, error_type}``
   in the tool result. The MCP client always gets a successful tool call
   with a structured payload it can introspect — never a protocol-level
@@ -26,7 +26,7 @@ Design notes
   a single line at startup announcing the server is ready (suppressed in
   the MCP runtime by the client). This keeps the protocol stream clean.
 
-Entry point: ``codex-imagen-mcp`` console script (see ``pyproject.toml``).
+Entry point: ``codex-images-mcp-server`` console script (see ``pyproject.toml``).
 """
 
 from __future__ import annotations
@@ -42,8 +42,8 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from codex_imagen import __version__, imagen
-from codex_imagen.core import ImagenResult
+from codex_images_mcp import __version__, imagen
+from codex_images_mcp.core import ImagenResult
 
 
 # ---------------------------------------------------------------------------
@@ -381,7 +381,7 @@ def _normalize(value: Any) -> Any:
 def _result_to_dict(result: ImagenResult) -> dict[str, Any]:
     """Convert :class:`ImagenResult` to a JSON-friendly dict.
 
-    Parallels :func:`codex_imagen.cli._result_to_json_dict`. We keep a small
+    Parallels :func:`codex_images_mcp.cli._result_to_json_dict`. We keep a small
     duplicate here (rather than importing from ``cli.py``) because the CLI
     helper is private to that module and importing it would couple two
     user-facing surfaces.
@@ -454,7 +454,7 @@ def _call_imagen_sync(arguments: dict[str, Any]) -> str:
 # Module-level Server instance. Handlers are registered at import time so
 # tests can introspect ``app.request_handlers``. The server only starts
 # reading stdin when :func:`_serve` is invoked.
-app: Server = Server("codex-imagen", version=__version__)
+app: Server = Server("codex-images", version=__version__)
 
 
 @app.list_tools()
@@ -501,7 +501,7 @@ async def _serve() -> None:
 
 
 def main() -> int:
-    """Console-script entry point for ``codex-imagen-mcp``.
+    """Console-script entry point for ``codex-images-mcp-server``.
 
     Returns:
         Process exit code. ``0`` on a clean shutdown, ``1`` if the event
@@ -513,7 +513,7 @@ def main() -> int:
     except KeyboardInterrupt:
         return 0
     except Exception as exc:  # pragma: no cover - defensive top-level catch
-        sys.stderr.write(f"codex-imagen-mcp: fatal error: {exc}\n")
+        sys.stderr.write(f"codex-images-mcp-server: fatal error: {exc}\n")
         return 1
     return 0
 

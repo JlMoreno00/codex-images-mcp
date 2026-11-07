@@ -1,4 +1,4 @@
-"""codex_imagen._manifest — JSONL run log writer.
+"""codex_images_mcp._manifest — JSONL run log writer.
 
 Purpose
 -------
