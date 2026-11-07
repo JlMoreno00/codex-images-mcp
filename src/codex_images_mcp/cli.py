@@ -3,6 +3,8 @@
 Subcommands
 -----------
 ``generate``   generate or edit images through the native Codex Images engine
+``login``      sign in to ChatGPT with a device code (a session separate from Codex)
+``logout``     delete the codex-images session (never touches a Codex CLI login)
 ``setup``      register the codex-images MCP server in your AI clients
 ``uninstall``  remove the codex-images registration (never touches codex-imagen)
 ``status``     show detected clients and install state
@@ -23,7 +25,7 @@ from typing import Any
 
 import click
 
-from codex_images_mcp import __version__, _native, _service
+from codex_images_mcp import __version__, _auth, _native, _service
 
 EXIT_OK: int = 0
 EXIT_GENERATION_FAILURE: int = 2
@@ -109,6 +111,25 @@ def _generate_command(prompt, prompt_json, references, mask, count, transparent,
     else:
         click.echo(json.dumps(structured, ensure_ascii=False))
     raise SystemExit(EXIT_GENERATION_FAILURE if result["is_error"] else EXIT_OK)
+
+
+@click.command(name="login")
+def _login_command() -> None:
+    """Sign in to ChatGPT with a device code (works on headless servers)."""
+    try:
+        path = _auth.login_device(show=lambda message: click.echo(message, err=True))
+    except _auth.OAuthResponsesError as exc:
+        raise click.ClickException(str(exc)) from exc
+    click.echo(f"Signed in. Session saved to {path}")
+
+
+@click.command(name="logout")
+def _logout_command() -> None:
+    """Delete the codex-images ChatGPT session."""
+    if _auth.logout():
+        click.echo(f"Signed out. Removed {_auth.own_auth_path()}")
+    else:
+        click.echo("No codex-images session to remove.")
 
 
 # ---------------------------------------------------------------------------
@@ -482,6 +503,7 @@ def _main_group() -> None:
 
     \b
     Examples:
+      codex-images-mcp login              # sign in to ChatGPT once
       codex-images-mcp generate "a ceramic mug" --transparent
       codex-images-mcp setup              # register the MCP server in your clients
       codex-images-mcp status
@@ -490,6 +512,8 @@ def _main_group() -> None:
 
 
 _main_group.add_command(_generate_command)
+_main_group.add_command(_login_command)
+_main_group.add_command(_logout_command)
 _main_group.add_command(_setup_command)
 _main_group.add_command(_uninstall_command)
 _main_group.add_command(_status_command)

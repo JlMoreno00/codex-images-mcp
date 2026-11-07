@@ -1,18 +1,28 @@
-"""Codex OAuth credentials and refresh.
+"""Codex OAuth credentials: own store, device-code login and refresh.
 
-Derived from codex-image-gen. Copyright (c) 2026 Small Turtle 2. MIT License.
+Credential resolution, in order:
 
-TODO(T4): Writing back borrowed auth.json is a release blocker: refresh-token
-rotation can sign out the owning Codex app. Use a dedicated credential store.
+1. The codex-images store (``CODEX_IMAGES_AUTH_FILE`` or
+   ``~/.config/codex-images/auth.json``), created by ``codex-images-mcp login``.
+   It is its own OAuth session, so it is refreshed and rewritten here (mode 0600).
+2. A borrowed Codex CLI login (``CODEX_HOME/auth.json``), used **read-only**
+   while its access token is valid. It is never refreshed: refresh tokens rotate,
+   and refreshing a borrowed copy would sign the owning Codex app out.
+
+Token loading and refresh derived from codex-image-gen.
+Copyright (c) 2026 Small Turtle 2. MIT License.
 """
 from __future__ import annotations
 import base64
 import binascii
 import json
 import os
+import tempfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -25,45 +35,117 @@ class OAuthResponsesError(Exception):
         self.status = status
         self.body = body
 
-_DEFAULT_OAUTH_TOKEN_URL = "https://auth.openai.com/oauth/token"
+_ISSUER = "https://auth.openai.com"
+_DEFAULT_OAUTH_TOKEN_URL = f"{_ISSUER}/oauth/token"
 _DEFAULT_OAUTH_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann"
+_DEVICE_TIMEOUT_SECONDS = 15 * 60
+_LOGIN_HINT = "run `codex-images-mcp login`"
+
+def own_auth_path() -> Path:
+    configured = os.environ.get("CODEX_IMAGES_AUTH_FILE")
+    if configured:
+        return Path(configured).expanduser()
+    base = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
+    return Path(base).expanduser() / "codex-images" / "auth.json"
+
 
 def oauth_headers(auth_file: str | os.PathLike[str] | None = None) -> dict[str, str]:
-    auth = _load_auth(auth_file)
+    """Return Codex request headers, refreshing only codex-images' own session."""
+    own = Path(auth_file).expanduser() if auth_file is not None else own_auth_path()
+    if own.exists():
+        auth = _load_auth(own)
+        tokens = _tokens(auth)
+        if tokens.get("refresh_token") and _should_refresh(tokens.get("access_token"), _optional_str(auth.get("last_refresh"))):
+            tokens = _merge_refresh(tokens, _refresh_tokens(tokens["refresh_token"]))
+            auth["tokens"] = tokens
+            auth["last_refresh"] = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
+            _write_private(own, auth)
+        return _headers(tokens)
+    borrowed = _borrowed_auth_path()
+    if not borrowed.exists():
+        raise OAuthResponsesError(f"No ChatGPT sign-in found; {_LOGIN_HINT}.")
+    tokens = _tokens(_load_auth(borrowed))
+    if _expired(tokens.get("access_token")):
+        raise OAuthResponsesError(
+            f"The borrowed Codex sign-in in {borrowed} has expired and is never refreshed here "
+            f"(that would sign the Codex app out); {_LOGIN_HINT} to create a separate session.")
+    return _headers(tokens)
+
+
+def login_device(*, show: Callable[[str], None] = print, sleep: Callable[[float], None] = time.sleep) -> Path:
+    """Run OpenAI's device-code sign-in and save a private codex-images session."""
+    started = _post_json(f"{_ISSUER}/api/accounts/deviceauth/usercode", {"client_id": _DEFAULT_OAUTH_CLIENT_ID},
+                         not_found="Device-code sign-in is not enabled for this account. Enable device code "
+                                   "authorization for Codex in ChatGPT settings (Security), then try again.")
+    device_id, user_code = _optional_str(started.get("device_auth_id")), _optional_str(started.get("user_code") or started.get("usercode"))
+    if not device_id or not user_code:
+        raise OAuthResponsesError("Device-code response is missing the device id or user code.")
+    interval = max(1, int(started.get("interval") or 5))
+    show(f"Open {_ISSUER}/codex/device and enter the code {user_code} to sign in.")
+    deadline = time.monotonic() + _DEVICE_TIMEOUT_SECONDS
+    while True:
+        if time.monotonic() > deadline:
+            raise OAuthResponsesError("Device-code sign-in timed out after 15 minutes; start again.")
+        try:
+            granted = _post_json(f"{_ISSUER}/api/accounts/deviceauth/token", {"device_auth_id": device_id, "user_code": user_code})
+            break
+        except OAuthResponsesError as exc:
+            if exc.status not in (403, 404):
+                raise
+            sleep(interval)
+    code, verifier = _optional_str(granted.get("authorization_code")), _optional_str(granted.get("code_verifier"))
+    if not code or not verifier:
+        raise OAuthResponsesError("Device authorization response is missing the authorization code.")
+    form = urllib.parse.urlencode({
+        "grant_type": "authorization_code", "code": code, "redirect_uri": f"{_ISSUER}/deviceauth/callback",
+        "client_id": _DEFAULT_OAUTH_CLIENT_ID, "code_verifier": verifier,
+    }).encode()
+    issued = _request_json(_DEFAULT_OAUTH_TOKEN_URL, form, "application/x-www-form-urlencoded")
+    if not isinstance(issued.get("access_token"), str):
+        raise OAuthResponsesError("Token exchange did not return an access token.")
+    tokens = _merge_refresh({}, issued)
+    if not tokens.get("account_id"):
+        raise OAuthResponsesError("Sign-in did not return a ChatGPT account id.")
+    path = own_auth_path()
+    _write_private(path, {"auth_mode": "chatgpt", "tokens": tokens,
+                          "last_refresh": time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())})
+    return path
+
+
+def logout() -> bool:
+    """Delete codex-images' own session. Never touches a Codex CLI login."""
+    path = own_auth_path()
+    try:
+        path.unlink()
+    except FileNotFoundError:
+        return False
+    return True
+
+
+def _tokens(auth: Mapping[str, Any]) -> dict[str, Any]:
     tokens = auth.get("tokens")
     if not isinstance(tokens, Mapping):
-        raise OAuthResponsesError("Codex auth file does not contain OAuth tokens")
+        raise OAuthResponsesError("Auth file does not contain OAuth tokens.")
+    return dict(tokens)
 
+
+def _merge_refresh(tokens: Mapping[str, Any], issued: Mapping[str, Any]) -> dict[str, Any]:
+    id_token = _optional_str(issued.get("id_token")) or _optional_str(tokens.get("id_token"))
+    return {
+        "id_token": id_token,
+        "access_token": issued["access_token"],
+        "refresh_token": _optional_str(issued.get("refresh_token")) or _optional_str(tokens.get("refresh_token")),
+        "account_id": _account_id_from_id_token(id_token) or _optional_str(tokens.get("account_id")),
+    }
+
+
+def _headers(tokens: Mapping[str, Any]) -> dict[str, str]:
     access_token = _optional_str(tokens.get("access_token"))
-    refresh_token = _optional_str(tokens.get("refresh_token"))
-    id_token = _optional_str(tokens.get("id_token"))
-    account_id = _optional_str(tokens.get("account_id")) or _account_id_from_id_token(
-        id_token
-    )
-
-    last_refresh = _optional_str(auth.get("last_refresh"))
-    if refresh_token and _should_refresh(access_token, last_refresh):
-        refreshed = _refresh_tokens(refresh_token)
-        tokens = {
-            "id_token": refreshed.get("id_token") or id_token,
-            "access_token": refreshed["access_token"],
-            "refresh_token": refreshed.get("refresh_token") or refresh_token,
-            "account_id": _account_id_from_id_token(refreshed.get("id_token"))
-            or account_id,
-        }
-        auth["tokens"] = tokens
-        auth["last_refresh"] = time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime())
-        _write_auth(auth_file, auth)
-        access_token = _optional_str(tokens.get("access_token"))
-        account_id = _optional_str(tokens.get("account_id"))
-
+    account_id = _optional_str(tokens.get("account_id")) or _account_id_from_id_token(_optional_str(tokens.get("id_token")))
     if not access_token:
-        raise OAuthResponsesError(
-            "Codex OAuth access token not found; run `codex login`"
-        )
+        raise OAuthResponsesError(f"OAuth access token not found; {_LOGIN_HINT}.")
     if not account_id:
-        raise OAuthResponsesError("Codex OAuth account id not found; run `codex login`")
-
+        raise OAuthResponsesError(f"ChatGPT account id not found; {_LOGIN_HINT}.")
     return {
         "Authorization": f"Bearer {access_token}",
         "chatgpt-account-id": account_id,
@@ -73,12 +155,59 @@ def oauth_headers(auth_file: str | os.PathLike[str] | None = None) -> dict[str, 
     }
 
 
-def _load_auth(auth_file: str | os.PathLike[str] | None) -> dict[str, Any]:
-    path = _auth_file_path(auth_file)
+def _expired(access_token: str | None) -> bool:
+    if not access_token:
+        return True
+    exp = _jwt_claims(access_token).get("exp")
+    return isinstance(exp, (int, float)) and exp <= time.time() + 300
+
+
+def _post_json(url: str, payload: Mapping[str, Any], *, not_found: str | None = None) -> dict[str, Any]:
+    try:
+        return _request_json(url, json.dumps(payload).encode(), "application/json")
+    except OAuthResponsesError as exc:
+        if exc.status == 404 and not_found:
+            raise OAuthResponsesError(not_found, status=404) from exc
+        raise
+
+
+def _request_json(url: str, body: bytes, content_type: str) -> dict[str, Any]:
+    request = urllib.request.Request(url, data=body, method="POST",
+                                     headers={"Content-Type": content_type, "Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            data = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        text = exc.read().decode("utf-8", errors="replace")
+        raise OAuthResponsesError(f"Sign-in request to {url} returned HTTP {exc.code}.", status=exc.code, body=text) from exc
+    except urllib.error.URLError as exc:
+        raise OAuthResponsesError(f"Sign-in request to {url} failed: {exc.reason}") from exc
+    except json.JSONDecodeError as exc:
+        raise OAuthResponsesError(f"Sign-in request to {url} returned invalid JSON.") from exc
+    if not isinstance(data, dict):
+        raise OAuthResponsesError(f"Sign-in request to {url} returned an unexpected payload.")
+    return data
+
+
+def _write_private(path: Path, auth: Mapping[str, Any]) -> None:
+    """Atomically write a 0600 credential file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(prefix=".auth-", dir=path.parent)
+    try:
+        os.fchmod(fd, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            json.dump(auth, handle, indent=2)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def _load_auth(path: Path) -> dict[str, Any]:
     try:
         data = json.loads(path.read_text("utf-8"))
     except FileNotFoundError as exc:
-        raise OAuthResponsesError(f"Codex auth file not found: {path}") from exc
+        raise OAuthResponsesError(f"Auth file not found: {path}") from exc
     except json.JSONDecodeError as exc:
         raise OAuthResponsesError(f"Codex auth file is not valid JSON: {path}") from exc
     if not isinstance(data, dict):
@@ -86,19 +215,7 @@ def _load_auth(auth_file: str | os.PathLike[str] | None) -> dict[str, Any]:
     return data
 
 
-def _write_auth(
-    auth_file: str | os.PathLike[str] | None,
-    auth: Mapping[str, Any],
-) -> None:
-    path = _auth_file_path(auth_file)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(auth, indent=2), encoding="utf-8")
-    path.chmod(0o600)
-
-
-def _auth_file_path(auth_file: str | os.PathLike[str] | None) -> Path:
-    if auth_file is not None:
-        return Path(auth_file).expanduser()
+def _borrowed_auth_path() -> Path:
     codex_home = os.environ.get("CODEX_HOME")
     if codex_home:
         return Path(codex_home).expanduser() / "auth.json"
@@ -106,11 +223,7 @@ def _auth_file_path(auth_file: str | os.PathLike[str] | None) -> Path:
 
 
 def _should_refresh(access_token: str | None, last_refresh: str | None) -> bool:
-    if not access_token:
-        return True
-    claims = _jwt_claims(access_token)
-    exp = claims.get("exp")
-    if isinstance(exp, (int, float)) and exp <= time.time() + 300:
+    if _expired(access_token):
         return True
     if last_refresh is None:
         return False
@@ -130,7 +243,6 @@ def _refresh_tokens(refresh_token: str) -> dict[str, str]:
             "grant_type": "refresh_token",
             "refresh_token": refresh_token,
             "client_id": _DEFAULT_OAUTH_CLIENT_ID,
-            "scope": "openid profile email offline_access",
         },
         separators=(",", ":"),
     ).encode("utf-8")

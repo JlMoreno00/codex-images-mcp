@@ -46,8 +46,41 @@ def _png(path: Path) -> Path:
 def test_help_lists_subcommands(runner: CliRunner) -> None:
     result = runner.invoke(cli_mod._main_group, ["--help"])
     assert result.exit_code == 0
-    for name in ("generate", "setup", "status", "uninstall"):
+    for name in ("generate", "login", "logout", "setup", "status", "uninstall"):
         assert name in result.output
+
+
+def test_login_prints_code_and_saved_path(runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    def fake_login(*, show):
+        show("Open https://auth.openai.com/codex/device and enter the code ABCD-1234 to sign in.")
+        return tmp_path / "auth.json"
+
+    monkeypatch.setattr(cli_mod._auth, "login_device", fake_login)
+    result = runner.invoke(cli_mod._main_group, ["login"])
+    assert result.exit_code == 0
+    assert "ABCD-1234" in result.stderr
+    assert result.stdout == f"Signed in. Session saved to {tmp_path / 'auth.json'}\n"
+
+
+def test_login_failure_exits_1_with_message(runner: CliRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    def failing(*, show):
+        raise cli_mod._auth.OAuthResponsesError("Device-code sign-in is not enabled for this account.")
+
+    monkeypatch.setattr(cli_mod._auth, "login_device", failing)
+    result = runner.invoke(cli_mod._main_group, ["login"])
+    assert result.exit_code == 1
+    assert "Device-code sign-in is not enabled for this account." in result.stderr
+
+
+def test_logout_removes_own_session(runner: CliRunner, monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    own = tmp_path / "own.json"
+    own.write_text("{}")
+    monkeypatch.setenv("CODEX_IMAGES_AUTH_FILE", str(own))
+    first = runner.invoke(cli_mod._main_group, ["logout"])
+    assert first.exit_code == 0 and first.stdout == f"Signed out. Removed {own}\n"
+    assert not own.exists()
+    second = runner.invoke(cli_mod._main_group, ["logout"])
+    assert second.exit_code == 0 and second.stdout == "No codex-images session to remove.\n"
 
 
 def test_version(runner: CliRunner) -> None:
