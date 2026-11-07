@@ -1,34 +1,40 @@
 # Releasing
 
+A `vX.Y.Z` tag runs `.github/workflows/release.yml`, which publishes three artifacts from the same commit:
+
+| Artifact | Where | Auth |
+|---|---|---|
+| Python package `codex-images-mcp` | PyPI | Trusted Publishing (OIDC, no stored token) |
+| Docker image `codex-images-mcp` (amd64, arm64) | `ghcr.io/jlmoreno00/codex-images-mcp` | `GITHUB_TOKEN` |
+| Pi extension `pi-codex-images` | npm, with provenance | `NPM_TOKEN` secret |
+
+Each job fails if the tag does not match the version it publishes.
+
 ## One-time setup
 
-1. Create a PyPI account at https://pypi.org and verify your email.
-2. Generate an API token at https://pypi.org/manage/account/token/ — for the very first release, scope it to **Entire account** (the project `codex-imagen` doesn't exist on PyPI yet, so project-scoped tokens aren't available). After v0.1.0 ships you can replace it with a project-scoped token.
-3. Add the token to GitHub: **Settings → Secrets and variables → Actions → New repository secret**
-   - Name: `PYPI_API_TOKEN`
-   - Value: `pypi-...` (the full token string from step 2)
+1. **PyPI**: on https://pypi.org/manage/account/publishing/ add a *pending publisher* for project `codex-images-mcp`, owner `JlMoreno00`, repository `codex-images-mcp`, workflow `release.yml`, environment `pypi`. Then create the `pypi` environment under **Settings → Environments** (optionally with required reviewers).
+2. **npm**: create a granular access token that can publish `pi-codex-images` and add it as the repository secret `NPM_TOKEN`.
+3. **GHCR**: nothing to configure. After the first push, open the package settings and set its visibility to public.
 
 ## Each release
 
-1. Bump `version` in `pyproject.toml` (e.g. `0.1.0` → `0.1.1`).
-2. Update `__version__` in `src/codex_imagen/__init__.py` to match.
-3. Update CHANGELOG if you keep one.
-4. Commit and push to main:
-   ```bash
-   git add pyproject.toml src/codex_imagen/__init__.py
-   git commit -m "Bump version to 0.1.1"
-   git push origin main
-   ```
-5. Tag and push the tag:
+1. Bump the version in all three places:
+   - `pyproject.toml` (`version`)
+   - `src/codex_images_mcp/__init__.py` (`__version__`)
+   - `packages/pi-codex-images/package.json` (`version`, then `npm install` to refresh the lockfile)
+2. Add the release notes to `CHANGELOG.md`.
+3. Commit, push to `main`, wait for CI to pass.
+4. Tag and push the tag:
+
    ```bash
    git tag v0.1.1
-   git push --tags
+   git push origin v0.1.1
    ```
-6. GitHub Actions picks up the `v*.*.*` tag, builds the wheel + sdist, runs `twine check`, and uploads to PyPI automatically. Watch progress at https://github.com/VelmoAI/codex-imagen/actions.
 
-## First release ever
+5. Watch https://github.com/JlMoreno00/codex-images-mcp/actions, then check a clean install:
 
-After the first successful publish:
-- Optionally re-scope the PyPI token to project `codex-imagen` only (more secure than an account-wide token).
-- Verify the package page looks right: https://pypi.org/project/codex-imagen/
-- Test a clean install: `pip install codex-imagen` in a fresh venv.
+   ```bash
+   uvx --from codex-images-mcp codex-images-mcp --version
+   docker run --rm ghcr.io/jlmoreno00/codex-images-mcp:latest codex-images-mcp --version
+   npm view pi-codex-images version
+   ```
