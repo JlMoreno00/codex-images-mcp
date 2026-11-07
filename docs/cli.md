@@ -32,6 +32,7 @@ codex-images-mcp generate "a ceramic mug, studio light" --transparent
 codex-images-mcp generate --prompt-json spec.json -n 4
 codex-images-mcp generate "make it night" -r photo.jpg --mask sky.png
 codex-images-mcp generate "og card" --width 1200 --height 630 --size-policy cover --format jpeg
+CODEX_IMAGES_ENGINE=api OPENAI_API_KEY=sk-... codex-images-mcp generate "poster" --model gpt-image-2.6-sunburst --quality max
 ```
 
 | Option | Meaning |
@@ -45,6 +46,9 @@ codex-images-mcp generate "og card" --width 1200 --height 630 --size-policy cove
 | `--format png\|jpeg\|webp` | Output format (default `png`). |
 | `--width`, `--height` | Final dimensions. |
 | `--size-policy native\|exact\|fit\|cover` | How to reach those dimensions (default `native`). |
+| `--model ID` | GPT Image model, for example `gpt-image-2.6-sunburst` (API engine only). |
+| `--quality LEVEL` | `auto`, `low`, `medium`, `high`, `xhigh` or `max` (API engine only). |
+| `--complexity LEVEL` | `low`, `medium` or `high` (API engine only). |
 | `-o, --output-dir DIR` | Artifact store (default `CODEX_IMAGES_OUTPUT_DIR` or your user data directory). |
 | `--pretty` | Human summary instead of JSON. |
 

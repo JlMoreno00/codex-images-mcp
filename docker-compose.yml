@@ -11,6 +11,9 @@ services:
     environment:
       CODEX_IMAGES_HTTP_TOKEN: ${CODEX_IMAGES_HTTP_TOKEN:?set a random token}
       # CODEX_IMAGES_PUBLIC_BASE_URL: https://images.example.com
+      # Optional paid engine with model choice (Images 2.6):
+      # CODEX_IMAGES_ENGINE: api
+      # OPENAI_API_KEY: ${OPENAI_API_KEY}
     volumes:
       # ChatGPT session (auth.json) and generated artifacts.
       # Sign in once: docker compose run --rm codex-images codex-images-mcp login

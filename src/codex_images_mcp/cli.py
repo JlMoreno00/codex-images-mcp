@@ -75,9 +75,14 @@ def _load_prompt(prompt: str | None, prompt_json: Path | None) -> Any:
 @click.option("--size-policy", type=click.Choice(["native", "exact", "fit", "cover"]), default="native", show_default=True)
 @click.option("-o", "--output-dir", type=click.Path(file_okay=False, path_type=Path), default=None,
               help="Artifact store (default: CODEX_IMAGES_OUTPUT_DIR or your user data directory).")
+@click.option("--model", default=None, help="GPT Image model id (API engine only), e.g. gpt-image-2.6-sunburst.")
+@click.option("--quality", type=click.Choice(["auto", "low", "medium", "high", "xhigh", "max"]), default=None,
+              help="Rendering quality (API engine only).")
+@click.option("--complexity", type=click.Choice(["low", "medium", "high"]), default=None,
+              help="Planning effort before rendering (API engine only).")
 @click.option("--pretty", is_flag=True, help="Print a human summary instead of JSON.")
 def _generate_command(prompt, prompt_json, references, mask, count, transparent, output_format,
-                      width, height, size_policy, output_dir, pretty) -> None:
+                      width, height, size_policy, output_dir, model, quality, complexity, pretty) -> None:
     """Generate or edit images with your ChatGPT plan."""
     arguments: dict[str, Any] = {"prompt": _load_prompt(prompt, prompt_json)}
     if references:
@@ -88,6 +93,9 @@ def _generate_command(prompt, prompt_json, references, mask, count, transparent,
         arguments["batch_mode"], arguments["count"] = "variants", count
     if transparent:
         arguments["transparent"] = True
+    for field, value in (("model", model), ("quality", quality), ("complexity", complexity)):
+        if value is not None:
+            arguments[field] = value
     output: dict[str, Any] = {"format": output_format, "size_policy": size_policy}
     if width is not None or height is not None:
         output.update(width=width, height=height)

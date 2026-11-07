@@ -6,8 +6,8 @@ String prompts are sent verbatim; labeled-spec objects become deterministic Labe
 Lists run up to four requests concurrently. variants repeats a prompt count times.
 With an anchor, branded-parallel references the generated anchor; chain references anchor and previous output.
 transparent requests native alpha, without chroma fallback. JPEG flattens alpha onto white.
-Model, quality and size are server-managed on this subscription route. Requests dispatch gpt-image-2,
-quality auto; requested size is only a hint. Final dimensions come from output.size_policy post-processing.
+On the default ChatGPT plan route model, quality and size are server-managed (gpt-image-2, quality auto,
+size only a hint). If the server runs the API engine, model, quality and complexity are honored. Final dimensions come from output.size_policy post-processing.
 Deprecated rewriting, skill, chroma, model-selection and output_dir fields are ignored with warnings.
 Returns codex-images.result/v2 with private image artifact resources; use codex_images_artifact for retrieval via mcp://codex-images/ resources.'''
 
@@ -23,6 +23,9 @@ TOOL_INPUT_SCHEMA = {
         'size': {'type': 'string', 'description': 'Server-managed size hint; final sizing uses output.'},
         'output_format': {'type': 'string', 'enum': ['png', 'jpeg', 'webp']},
         'transparent': {'type': 'boolean', 'description': 'Request native transparent background; warn if result is fully opaque.'},
+        'model': {'type': 'string', 'description': 'GPT Image model id, e.g. gpt-image-2.6-sunburst. Honored only when the server runs the API engine (CODEX_IMAGES_ENGINE=api); ignored with a warning on the ChatGPT plan route.'},
+        'quality': {'type': 'string', 'enum': ['auto', 'low', 'medium', 'high', 'xhigh', 'max'], 'description': 'Rendering quality. API engine only.'},
+        'complexity': {'type': 'string', 'enum': ['low', 'medium', 'high'], 'description': 'Planning effort before rendering (Images 2.6). API engine only.'},
         'chain_mode': {'description': 'Compatibility field; chain always references anchor and previous output.'},
     },
 }

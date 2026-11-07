@@ -12,12 +12,26 @@ Generate or edit images. The only required field is `prompt`.
 | `batch_mode` | `auto`, `single`, `parallel`, `variants`, `chain`, `branded-parallel` | How several images relate. See below. |
 | `count` | integer ≥ 1 | Number of images for `variants`. |
 | `anchor` | string or object | Prompt for an anchor image that `chain` and `branded-parallel` reference. |
-| `references` | array | Up to five reference images per request (the anchor and previous image count toward the five). |
+| `references` | array | Reference images per request: up to five on the plan route, 16 on the API engine (the anchor and previous image count). |
 | `mask` | string or object | Edit mask in the same forms as a reference. Requires a reference. |
 | `transparent` | boolean | Request a native transparent background. |
 | `output` | object | Final format and dimensions, see below. |
 | `size` | string | Size hint for the backend only. Use `output` for final dimensions. |
 | `output_format` | `png`, `jpeg`, `webp` | Shortcut for `output.format`. |
+| `model` | string | GPT Image model id, for example `gpt-image-2.6-sunburst`. API engine only. |
+| `quality` | `auto`, `low`, `medium`, `high`, `xhigh`, `max` | Rendering quality. API engine only. |
+| `complexity` | `low`, `medium`, `high` | How much the model plans before rendering (Images 2.6). API engine only. |
+
+### Engines
+
+The server owner picks the engine; clients cannot.
+
+| Engine | Enabled by | Model | `model` / `quality` / `complexity` | Billing |
+|---|---|---|---|---|
+| ChatGPT plan (default) | `codex-images-mcp login` | Chosen by OpenAI's server (reported as `gpt-image-2`) | Ignored, with a warning | Your ChatGPT plan's limits |
+| OpenAI API | `CODEX_IMAGES_ENGINE=api` and `OPENAI_API_KEY` | `model`, or `CODEX_IMAGES_API_MODEL` (default `gpt-image-2.6-flare`) | Honored | Your API account, per token |
+
+`models` in the result reports the engine: `{"engine": "chatgpt-plan", "dispatched": "gpt-image-2", "confirmed": false}` or `{"engine": "openai-api", "requested": "...", "dispatched": "...", "confirmed": true}`. On the plan route, OpenAI chooses the model server-side and the effective model cannot be verified.
 
 ### Batch modes
 
@@ -100,15 +114,15 @@ The result (`codex-images.artifact/v1`) carries `filename`, `mime_type`, `width`
 
 | Code | Meaning |
 |---|---|
-| `INVALID_ARGUMENT` | Malformed arguments (for example an empty prompt list). |
+| `INVALID_ARGUMENT` | Malformed arguments: an empty prompt list, an unknown `quality`/`complexity`, a `model` that is not a GPT Image id, or an invalid `CODEX_IMAGES_ENGINE`. |
 | `LOCAL_PATH_FORBIDDEN` | A local path was sent to the server; send the file inline. |
 | `INPUT_MATERIALIZATION_FAILED` | A reference or mask could not be prepared (bad base64, too large, two masks, mask without reference). |
 | `UNSUPPORTED_MIME_TYPE` | An input is not PNG, JPEG or WebP, or its declared type does not match. |
-| `TOO_MANY_REFERENCES` | More than five references in one request. |
+| `TOO_MANY_REFERENCES` | More references than the engine accepts (5 on the plan route, 16 on the API engine). |
 | `REMOTE_DOWNLOAD_FAILED` | A URL reference is not HTTPS, resolves to a private address, redirects or failed to download. |
 | `UNSUPPORTED_DIMENSIONS` | Invalid `output` size or policy. |
 | `CLIENT_WRITE_FAILED` | `client_destination` was sent to the server; it is for client adapters only. |
-| `UPSTREAM_AUTH_FAILED` | The ChatGPT session is missing or expired. Run `codex-images-mcp login`. |
+| `UPSTREAM_AUTH_FAILED` | The ChatGPT session is missing or expired (run `codex-images-mcp login`), or the API engine has no valid `OPENAI_API_KEY`. |
 | `UPSTREAM_GENERATION_FAILED` | The image endpoint failed; usually retryable. |
 | `ARTIFACT_INCOMPLETE`, `ARTIFACT_PERSISTENCE_FAILED` | A generated image could not be verified or stored. |
 | `ARTIFACT_READ_FAILED`, `ARTIFACT_TOO_LARGE` | Unknown, expired or oversized artifact. |

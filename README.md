@@ -14,6 +14,7 @@ codex-images-mcp is an MCP server for the Codex Images endpoint. It runs locally
 - **Native transparency**: real alpha PNGs from the model, with a warning when a result comes back opaque.
 - **Exact output sizes**: `native`, `exact`, `fit` or `cover` post-processing, so a 1200×630 card is 1200×630.
 - **Prompts sent verbatim**: no hidden rewriting model in between.
+- **Optional API-key engine**: set `CODEX_IMAGES_ENGINE=api` with an `OPENAI_API_KEY` to choose the model yourself (Images 2.6 `gpt-image-2.6-sunburst` / `-flare`), with quality up to `max` and complexity control. This engine is billed to your API account. On the default ChatGPT plan route OpenAI chooses the model, and the API selectors (`model`, `quality`, `complexity`) are ignored.
 - **Self-hosting that is safe by default**: built-in bearer auth, refuses to listen publicly without a token, SSRF-hardened URL fetching (HTTPS, public addresses only, pinned IP, no redirects), no server paths in results.
 - **Its own ChatGPT session**: `codex-images-mcp login` uses a device code and keeps a separate session, so it never rotates (and breaks) your Codex app's sign-in.
 

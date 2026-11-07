@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import socket
 import ssl
 from dataclasses import dataclass
@@ -21,6 +22,12 @@ from ._auth import oauth_headers
 from ._urls import validate_public_https
 
 BASE = 'https://chatgpt.com/backend-api/codex/images'
+API_BASE = 'https://api.openai.com/v1/images'
+DEFAULT_API_MODEL = 'gpt-image-2.6-flare'
+QUALITIES = ('auto', 'low', 'medium', 'high', 'xhigh', 'max')
+COMPLEXITIES = ('low', 'medium', 'high')
+API_OPTIONS = ('model', 'quality', 'complexity')
+MODEL_RE = re.compile(r'gpt-image-[a-z0-9][a-z0-9.-]{0,63}')
 MAX_INPUT_BYTES = int(os.environ.get('CODEX_IMAGES_MAX_INLINE_INPUT_BYTES', str(8 * 1024 * 1024)))
 DEPRECATED = ('mode', 'skills', 'instruction_files', 'extra_instructions', 'chroma_key', 'chroma_tolerance', 'image_model', 'output_dir', 'chroma_despill', 'chroma_despill_mode', 'chroma_edge_erode_px', 'chroma_auto_key', 'chroma_transparent_threshold', 'chroma_opaque_threshold', 'enhance_prompt', 'vars', 'parallel', 'wall_clock_timeout', 'advanced')
 FIELDS = ('use_case', 'asset_type', 'primary_request', 'input_images', 'scene', 'subject', 'style_medium', 'composition', 'lighting_mood', 'palette', 'materials', 'text_verbatim', 'constraints', 'avoid')
@@ -151,13 +158,56 @@ def data_url(source):
     return {'image_url': f'data:{mime};base64,' + base64.b64encode(data).decode('ascii')}
 
 
-def request_image(body) -> tuple[bytes, bool]:
+def engine_config(args) -> dict[str, Any]:
+    """Resolve the image engine chosen by the server owner (never by the client)."""
+    name = os.environ.get('CODEX_IMAGES_ENGINE', 'chatgpt').strip().lower() or 'chatgpt'
+    if name not in ('chatgpt', 'api'):
+        raise EngineError('INVALID_ARGUMENT', 'CODEX_IMAGES_ENGINE must be "chatgpt" or "api".')
+    if args.get('quality') is not None and args['quality'] not in QUALITIES:
+        raise EngineError('INVALID_ARGUMENT', f'quality must be one of {", ".join(QUALITIES)}.')
+    if args.get('complexity') is not None and args['complexity'] not in COMPLEXITIES:
+        raise EngineError('INVALID_ARGUMENT', f'complexity must be one of {", ".join(COMPLEXITIES)}.')
+    if args.get('model') is not None and not (isinstance(args['model'], str) and MODEL_RE.fullmatch(args['model'])):
+        raise EngineError('INVALID_ARGUMENT', 'model must be a GPT Image model id such as gpt-image-2.6-sunburst.')
+    if name == 'chatgpt':
+        return {'engine': 'chatgpt-plan', 'base': BASE, 'max_refs': 5, 'model': 'gpt-image-2'}
+    key = os.environ.get('OPENAI_API_KEY', '').strip()
+    if not key:
+        raise EngineError('UPSTREAM_AUTH_FAILED', 'CODEX_IMAGES_ENGINE=api requires OPENAI_API_KEY.')
+    model = args.get('model') or os.environ.get('CODEX_IMAGES_API_MODEL') or DEFAULT_API_MODEL
+    if not MODEL_RE.fullmatch(model):
+        raise EngineError('INVALID_ARGUMENT', 'CODEX_IMAGES_API_MODEL must be a GPT Image model id.')
+    return {'engine': 'openai-api', 'base': API_BASE, 'max_refs': 16, 'model': model, 'key': key}
+
+
+def _api_error(exc: HTTPError, key: str) -> EngineError:
+    """Map an OpenAI API error without ever echoing the key."""
     try:
-        headers = {k: v for k, v in oauth_headers(None).items() if k.lower() != 'openai-beta'}
-    except Exception as exc:
-        raise EngineError('UPSTREAM_AUTH_FAILED', 'Codex OAuth authentication failed.') from exc
-    headers.update({'Content-Type': 'application/json', 'Accept': 'application/json', 'originator': 'codex_cli_rs', 'User-Agent': 'codex_cli_rs/0.163.0 (Ubuntu 24.4.0; x86_64) xterm'})
-    request = Request(BASE + ('/edits' if body.get('images') else '/generations'), data=json.dumps(body).encode(), headers=headers, method='POST')
+        detail = json.loads(exc.read() or b'{}').get('error', {}).get('message') or ''
+    except (ValueError, AttributeError, OSError):
+        detail = ''
+    detail = detail.replace(key, '[redacted]')[:300] if isinstance(detail, str) else ''
+    suffix = f': {detail}' if detail else '.'
+    if exc.code in (401, 403):
+        return EngineError('UPSTREAM_AUTH_FAILED', 'OpenAI API rejected the API key or organization' + suffix, False)
+    return EngineError('UPSTREAM_GENERATION_FAILED', f'OpenAI API returned HTTP {exc.code}' + suffix,
+                       exc.code == 429 or exc.code >= 500)
+
+
+def request_image(body, config=None) -> tuple[bytes, bool]:
+    config = config or {'engine': 'chatgpt-plan', 'base': BASE}
+    api = config['engine'] == 'openai-api'
+    if api:
+        headers = {'Authorization': f"Bearer {config['key']}"}
+    else:
+        try:
+            headers = {k: v for k, v in oauth_headers(None).items() if k.lower() != 'openai-beta'}
+        except Exception as exc:
+            raise EngineError('UPSTREAM_AUTH_FAILED', 'Codex OAuth authentication failed.') from exc
+        headers.update({'originator': 'codex_cli_rs', 'User-Agent': 'codex_cli_rs/0.163.0 (Ubuntu 24.4.0; x86_64) xterm'})
+    headers.update({'Content-Type': 'application/json', 'Accept': 'application/json'})
+    request = Request(config['base'] + ('/edits' if body.get('images') else '/generations'), data=json.dumps(body).encode(), headers=headers, method='POST')
+    label = 'OpenAI API' if api else 'Codex Images'
     for attempt in range(2):
         try:
             with urlopen(request, timeout=280) as response:
@@ -170,17 +220,19 @@ def request_image(body) -> tuple[bytes, bool]:
                 opaque = image.convert('RGBA').getchannel('A').getextrema()[0] == 255
             return data, opaque
         except HTTPError as exc:
-            content_type = exc.headers.get('Content-Type', '').lower()
-            if exc.code in (401, 403) and 'json' in content_type:
+            content_type = exc.headers.get('Content-Type', '').lower() if exc.headers else ''
+            if api:
+                error = _api_error(exc, config['key'])
+            elif exc.code in (401, 403) and 'json' in content_type:
                 error = EngineError('UPSTREAM_AUTH_FAILED', 'Codex Images authentication was rejected.', False)
             elif exc.code == 403:
                 error = EngineError('UPSTREAM_GENERATION_FAILED', 'Codex Images was blocked by Cloudflare (HTML 403).', False)
             else:
                 error = EngineError('UPSTREAM_GENERATION_FAILED', f'Codex Images returned HTTP {exc.code}.', exc.code == 429 or exc.code >= 500)
         except (URLError, TimeoutError, socket.timeout):
-            error = EngineError('UPSTREAM_GENERATION_FAILED', 'Codex Images request timed out or failed to connect.', True)
+            error = EngineError('UPSTREAM_GENERATION_FAILED', f'{label} request timed out or failed to connect.', True)
         except (ValueError, KeyError, IndexError, TypeError, OSError):
-            error = EngineError('UPSTREAM_GENERATION_FAILED', 'Codex Images returned an invalid image response.', False)
+            error = EngineError('UPSTREAM_GENERATION_FAILED', f'{label} returned an invalid image response.', False)
         if not error.retryable or attempt:
             raise error
 
@@ -191,7 +243,19 @@ def generate(args):
     """Return the legacy-shaped intermediate consumed by the v2 artifact adapter."""
     warnings = []
     images, errors = [], []
-    models = {'dispatched': 'gpt-image-2', 'provider': None, 'confirmed': False}
+    try:
+        config = engine_config(args)
+    except EngineError as exc:
+        error = exc.record(0)
+        return {'ok': False, 'images': [], 'errors': [error], 'error': error['message'], 'warnings': [], 'models': {}}
+    if config['engine'] == 'openai-api':
+        models = {'engine': 'openai-api', 'requested': config['model'], 'dispatched': config['model'], 'confirmed': True}
+    else:
+        models = {'engine': 'chatgpt-plan', 'dispatched': 'gpt-image-2', 'provider': None, 'confirmed': False}
+        ignored = [field for field in API_OPTIONS if args.get(field) is not None]
+        if ignored:
+            warnings.append(f"{', '.join(ignored)} are ignored on the ChatGPT plan route; the server picks the model. "
+                            "Set CODEX_IMAGES_ENGINE=api with OPENAI_API_KEY to choose them.")
     prompt = args.get('prompt')
     prompts = prompt if isinstance(prompt, list) else [prompt] * (int(args.get('count', 1)) if args.get('batch_mode') == 'variants' else 1)
     if not prompts:
@@ -202,16 +266,21 @@ def generate(args):
 
     def one(index, prompt, refs):
         try:
-            if len(refs) > 5:
-                raise EngineError('TOO_MANY_REFERENCES', 'Codex Images accepts at most five reference images per request.')
-            body: dict[str, Any] = {'prompt': render_prompt(prompt), 'background': 'transparent' if args.get('transparent') else 'opaque', 'model': 'gpt-image-2', 'quality': 'auto', 'size': size_hint(args.get('size', 'auto'))}
+            if len(refs) > config['max_refs']:
+                raise EngineError('TOO_MANY_REFERENCES', f"This engine accepts at most {config['max_refs']} reference images per request.")
+            body: dict[str, Any] = {'prompt': render_prompt(prompt), 'background': 'transparent' if args.get('transparent') else 'opaque', 'model': config['model'], 'quality': 'auto', 'size': size_hint(args.get('size', 'auto'))}
+            if config['engine'] == 'openai-api':
+                body['output_format'] = 'png'
+                body['quality'] = args.get('quality') or 'auto'
+                if args.get('complexity'):
+                    body['complexity'] = args['complexity']
             if refs:
                 body['images'] = [data_url(ref) for ref in refs]
             if args.get('mask'):
                 if not refs:
                     raise EngineError('INVALID_ARGUMENT', 'A mask requires a reference image.')
                 body['mask'] = data_url(args['mask'])
-            data, opaque = request_image(body)
+            data, opaque = request_image(body, config)
             path = root / ('anchor.png' if index == -1 else f'{index}.png')
             path.write_bytes(data)
             notes = []

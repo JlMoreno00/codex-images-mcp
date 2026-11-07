@@ -47,6 +47,9 @@ CODEX_IMAGES_HTTP_TOKEN=... codex-images-mcp-http
 | `CODEX_IMAGES_OUTPUT_DIR` | user data dir (`/data/out` in Docker) | Artifact store. |
 | `CODEX_IMAGES_AUTH_FILE` | `~/.config/codex-images/auth.json` (`/data/auth.json` in Docker) | codex-images ChatGPT session. |
 | `CODEX_HOME` | `~/.codex` | Read-only fallback to a Codex CLI login. |
+| `CODEX_IMAGES_ENGINE` | `chatgpt` | `chatgpt` uses your ChatGPT plan; `api` uses the paid OpenAI API. |
+| `OPENAI_API_KEY` | unset | Required with `CODEX_IMAGES_ENGINE=api`. Never returned in results or errors. |
+| `CODEX_IMAGES_API_MODEL` | `gpt-image-2.6-flare` | Default model for the API engine; callers can override it per request. |
 | `CODEX_IMAGES_MAX_INLINE_INPUT_BYTES` | 8 MiB | Per-file input limit. |
 | `CODEX_IMAGES_MAX_REQUEST_INPUT_BYTES` | 24 MiB | Total inline input per request. |
 
@@ -57,7 +60,7 @@ CODEX_IMAGES_HTTP_TOKEN=... codex-images-mcp-http
 - URL references must be HTTPS and resolve only to public addresses. The server connects to the address it checked, so a DNS change after the check cannot redirect the request. It does not follow redirects and ignores proxy environment variables.
 - Artifact URIs are random, are not listed by `resources/list`, are confined to their job directory, and are verified (SHA-256, MIME, dimensions) every time they are read.
 - Results never include server-side paths.
-- Anyone with the bearer token can generate images on your ChatGPT plan, so treat the token like your password.
+- Anyone with the bearer token can generate images on your ChatGPT plan, or on your API account when the API engine is on, so treat the token like your password. With the API engine every image is billed per token, and callers can pick any GPT Image model and quality, including `max`. Set a spending limit on the API account.
 
 ## Clients
 

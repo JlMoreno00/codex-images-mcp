@@ -14,6 +14,7 @@ First release of codex-images-mcp, a fork of [VelmoAI/codex-imagen](https://gith
 - `codex-images-mcp login` / `logout`: a device-code ChatGPT session of its own, stored with mode 0600.
 - SSRF-hardened remote references: HTTPS, public addresses only, pinned IP, no redirects.
 - Pi / Gentle Shell extension `pi-codex-images`.
+- Optional OpenAI API engine (`CODEX_IMAGES_ENGINE=api` + `OPENAI_API_KEY`) that honors `model` (default `gpt-image-2.6-flare`), `quality` and `complexity`; the plan route ignores them with a warning. Results report the engine in `models.engine`.
 - CI on Linux, macOS and Windows; releases to PyPI, GHCR and npm.
 
 ### Changed

@@ -7,7 +7,7 @@ Several community projects generate images through the Codex Images endpoint on 
 | Language | Python | TypeScript | Python |
 | Transport | stdio **and** Streamable HTTP | stdio | stdio |
 | Self-hosting with built-in auth | Yes (bearer, refuses public bind without it) | No | No |
-| Engine | Native Codex Images endpoint | Native Codex Images endpoint | Codex Responses with a prompt-rewriting model |
+| Engine | Native Codex Images endpoint; optional OpenAI API engine with model choice | Native Codex Images endpoint | Codex Responses with a prompt-rewriting model |
 | Prompts | Verbatim | Verbatim, plus aspect-ratio guidance | Rewritten by a reasoning model |
 | Transparency | Native alpha | Native alpha, plus local chroma-key removal | Chroma-key post-processing |
 | Edit masks | Yes | No separate mask input | Yes |

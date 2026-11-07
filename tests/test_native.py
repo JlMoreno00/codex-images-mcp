@@ -42,7 +42,7 @@ def test_generate_verbatim_and_headers(tmp_path, monkeypatch):
     assert timeout == 280
     assert 'Openai-beta' not in request.headers
     assert request.headers['User-agent'].startswith('codex_cli_rs/')
-    assert result['models'] == {'dispatched': 'gpt-image-2', 'provider': None, 'confirmed': False}
+    assert result['models'] == {'engine': 'chatgpt-plan', 'dispatched': 'gpt-image-2', 'provider': None, 'confirmed': False}
 
 
 def test_edit_mask_transparency(tmp_path, monkeypatch):
