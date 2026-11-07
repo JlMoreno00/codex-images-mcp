@@ -65,6 +65,7 @@ dev = [
 [project.scripts]
 codex-images-mcp = "codex_images_mcp.cli:main_group"
 codex-images-mcp-server = "codex_images_mcp.mcp_server:main"
+codex-images-mcp-http = "codex_images_mcp.http_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/codex_images_mcp"]
