@@ -1,4 +1,4 @@
-"""Tests for bundled-skill install, uninstall, and status in codex_imagen._install.
+"""Tests for bundled-skill install, uninstall, and status in codex_images_mcp._install.
 
 All tests are isolated via monkeypatching ``_install._home`` to a tmp_path so
 no real user config files are touched.
@@ -12,8 +12,8 @@ from pathlib import Path
 import pytest
 import yaml  # type: ignore[import]
 
-import codex_imagen._install as _install_mod
-from codex_imagen._install import (
+import codex_images_mcp._install as _install_mod
+from codex_images_mcp._install import (
     install_skill_for_client,
     skill_status_for_client,
     uninstall_skill_for_client,
@@ -38,15 +38,15 @@ def _patch_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
 
 
 def test_bundled_skill_importable_via_importlib_resources() -> None:
-    """imagen.md is loadable via importlib.resources from the installed package."""
-    ref = ir.files("codex_imagen._assets.skills").joinpath("imagen.md")
+    """codex-images.md is loadable via importlib.resources from the installed package."""
+    ref = ir.files("codex_images_mcp._assets.skills").joinpath("codex-images.md")
     content = ref.read_text(encoding="utf-8")
     assert content.strip().startswith("---"), "skill file must begin with YAML frontmatter"
 
 
 def test_bundled_skill_frontmatter_has_name_and_description() -> None:
     """Frontmatter must have both 'name' and 'description' keys."""
-    ref = ir.files("codex_imagen._assets.skills").joinpath("imagen.md")
+    ref = ir.files("codex_images_mcp._assets.skills").joinpath("codex-images.md")
     content = ref.read_text(encoding="utf-8")
     # Extract the YAML block between the first pair of '---'
     parts = content.split("---", 2)
@@ -55,34 +55,33 @@ def test_bundled_skill_frontmatter_has_name_and_description() -> None:
     assert isinstance(fm, dict), "frontmatter must be a YAML mapping"
     assert "name" in fm, "frontmatter must have 'name'"
     assert "description" in fm, "frontmatter must have 'description'"
-    assert fm["name"] == "imagen"
+    assert fm["name"] == "codex-images"
     # Description must establish primacy so AI agents prefer this over native imagegen.
     desc = fm["description"]
     assert "Primary" in desc or "PREFERRED" in desc, (
         "skill description must signal primacy (contain 'Primary' or 'PREFERRED') "
-        "so AI agents prefer codex-imagen over native imagegen"
+        "so AI agents prefer codex-images over native imagegen"
     )
 
 
 def test_bundled_skill_body_covers_all_batch_modes() -> None:
     """Skill body must mention all five batch_mode values."""
-    ref = ir.files("codex_imagen._assets.skills").joinpath("imagen.md")
+    ref = ir.files("codex_images_mcp._assets.skills").joinpath("codex-images.md")
     content = ref.read_text(encoding="utf-8")
     for mode in ("single", "parallel", "variants", "chain", "branded-parallel"):
         assert mode in content, f"skill body must mention batch_mode '{mode}'"
 
 
-def test_bundled_skill_body_covers_all_reasoning_modes() -> None:
-    """Skill body must mention all four reasoning modes."""
-    ref = ir.files("codex_imagen._assets.skills").joinpath("imagen.md")
+def test_bundled_skill_documents_native_tools() -> None:
+    """Skill body must name both MCP tools and the v2 result schema."""
+    ref = ir.files("codex_images_mcp._assets.skills").joinpath("codex-images.md")
     content = ref.read_text(encoding="utf-8")
-    for mode in ("raw", "medium", "high", "max"):
-        assert mode in content, f"skill body must mention reasoning mode '{mode}'"
-
+    for needle in ("codex_images", "codex_images_artifact", "codex-images.result/v2"):
+        assert needle in content
 
 def test_bundled_skill_under_500_lines() -> None:
     """Skill file must stay under 500 lines."""
-    ref = ir.files("codex_imagen._assets.skills").joinpath("imagen.md")
+    ref = ir.files("codex_images_mcp._assets.skills").joinpath("codex-images.md")
     content = ref.read_text(encoding="utf-8")
     line_count = len(content.splitlines())
     assert line_count < 500, f"skill file is {line_count} lines — must be < 500"
@@ -96,11 +95,11 @@ def test_bundled_skill_under_500_lines() -> None:
 def test_install_skill_claude_code_creates_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """install_skill_for_client('claude-code') creates ~/.claude/skills/imagen/SKILL.md."""
+    """install_skill_for_client('claude-code') creates ~/.claude/skills/codex-images/SKILL.md."""
     _patch_home(monkeypatch, tmp_path)
     ok, msg = install_skill_for_client("claude-code")
     assert ok is True
-    skill_path = tmp_path / ".claude" / "skills" / "imagen" / "SKILL.md"
+    skill_path = tmp_path / ".claude" / "skills" / "codex-images" / "SKILL.md"
     assert skill_path.exists(), "SKILL.md must be created"
     content = skill_path.read_text(encoding="utf-8")
     assert "---" in content, "installed file must contain frontmatter"
@@ -122,11 +121,11 @@ def test_install_skill_claude_code_is_idempotent(
 def test_install_skill_codex_creates_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """install_skill_for_client('codex') creates ~/.codex/skills/imagen/SKILL.md."""
+    """install_skill_for_client('codex') creates ~/.codex/skills/codex-images/SKILL.md."""
     _patch_home(monkeypatch, tmp_path)
     ok, msg = install_skill_for_client("codex")
     assert ok is True
-    skill_path = tmp_path / ".codex" / "skills" / "imagen" / "SKILL.md"
+    skill_path = tmp_path / ".codex" / "skills" / "codex-images" / "SKILL.md"
     assert skill_path.exists()
 
 
@@ -168,7 +167,7 @@ def test_install_skill_dry_run_makes_no_changes(
     ok, msg = install_skill_for_client("claude-code", dry_run=True)
     assert ok is True
     assert "dry-run" in msg
-    skill_path = tmp_path / ".claude" / "skills" / "imagen" / "SKILL.md"
+    skill_path = tmp_path / ".claude" / "skills" / "codex-images" / "SKILL.md"
     assert not skill_path.exists(), "dry-run must not create the file"
 
 
@@ -183,7 +182,7 @@ def test_uninstall_skill_removes_file(
     """uninstall_skill_for_client removes the skill file after install."""
     _patch_home(monkeypatch, tmp_path)
     install_skill_for_client("claude-code")
-    skill_path = tmp_path / ".claude" / "skills" / "imagen" / "SKILL.md"
+    skill_path = tmp_path / ".claude" / "skills" / "codex-images" / "SKILL.md"
     assert skill_path.exists()
 
     ok, msg = uninstall_skill_for_client("claude-code")
@@ -208,7 +207,7 @@ def test_uninstall_skill_dry_run_makes_no_changes(
     """uninstall_skill_for_client dry_run=True leaves the file in place."""
     _patch_home(monkeypatch, tmp_path)
     install_skill_for_client("claude-code")
-    skill_path = tmp_path / ".claude" / "skills" / "imagen" / "SKILL.md"
+    skill_path = tmp_path / ".claude" / "skills" / "codex-images" / "SKILL.md"
     assert skill_path.exists()
 
     ok, msg = uninstall_skill_for_client("claude-code", dry_run=True)
@@ -275,16 +274,16 @@ def test_skill_status_unknown_client(
 
 
 # ---------------------------------------------------------------------------
-# 5. CLI integration — imagen setup --client claude-code installs skill
+# 5. CLI integration — codex-images-mcp setup --client claude-code installs skill
 # ---------------------------------------------------------------------------
 
 
 def test_cli_setup_installs_skill(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """imagen setup --client claude-code writes the skill file."""
+    """codex-images-mcp setup --client claude-code writes the skill file."""
     from click.testing import CliRunner
-    from codex_imagen.cli import _setup_command
+    from codex_images_mcp.cli import _setup_command
 
     _patch_home(monkeypatch, tmp_path)
     # Claude Code requires .claude.json to exist (detection).
@@ -293,23 +292,23 @@ def test_cli_setup_installs_skill(
     runner = CliRunner()
     result = runner.invoke(_setup_command, ["--client", "claude-code"])
     assert result.exit_code == 0, result.output
-    skill_path = tmp_path / ".claude" / "skills" / "imagen" / "SKILL.md"
+    skill_path = tmp_path / ".claude" / "skills" / "codex-images" / "SKILL.md"
     assert skill_path.exists(), "setup must install the skill file"
 
 
 def test_cli_uninstall_removes_skill(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """imagen uninstall --client claude-code removes the skill file."""
+    """codex-images-mcp uninstall --client claude-code removes the skill file."""
     from click.testing import CliRunner
-    from codex_imagen.cli import _setup_command, _uninstall_command
+    from codex_images_mcp.cli import _setup_command, _uninstall_command
 
     _patch_home(monkeypatch, tmp_path)
     (tmp_path / ".claude.json").write_text("{}", encoding="utf-8")
 
     runner = CliRunner()
     runner.invoke(_setup_command, ["--client", "claude-code"])
-    skill_path = tmp_path / ".claude" / "skills" / "imagen" / "SKILL.md"
+    skill_path = tmp_path / ".claude" / "skills" / "codex-images" / "SKILL.md"
     assert skill_path.exists()
 
     result = runner.invoke(_uninstall_command, ["--client", "claude-code"])
@@ -320,9 +319,9 @@ def test_cli_uninstall_removes_skill(
 def test_cli_status_reports_skill_presence(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """imagen status output includes skill status section."""
+    """codex-images-mcp status output includes skill status section."""
     from click.testing import CliRunner
-    from codex_imagen.cli import _status_command
+    from codex_images_mcp.cli import _status_command
 
     _patch_home(monkeypatch, tmp_path)
     runner = CliRunner()

@@ -1,208 +1,72 @@
 # CLI reference
 
-`imagen` is the command-line interface for codex-imagen. It has dual output
-modes (human-friendly TTY / JSON for scripting), auto-detected from whether
-stdout is a terminal.
-
----
-
-## Subcommands
-
-### `imagen setup`
-
-Register codex-imagen MCP in one or more AI clients.
-
-```bash
-imagen setup                                 # interactive walkthrough
-imagen setup --all                           # install for all detected clients
-imagen setup --client claude-code            # install for a specific client
-imagen setup --client codex --client cursor  # multiple specific clients
-imagen setup --dry-run --all                 # preview changes, no writes
+```text
+codex-images-mcp generate   Generate or edit images
+codex-images-mcp login      Sign in to ChatGPT with a device code
+codex-images-mcp logout     Delete the codex-images session
+codex-images-mcp setup      Register the MCP server in your AI clients
+codex-images-mcp status     Show detected clients and install state
+codex-images-mcp uninstall  Remove the registration
 ```
 
-Clients: `claude-code`, `claude-desktop`, `codex`, `cursor`, `opencode`
+The servers have their own commands: `codex-images-mcp-server` (stdio) and `codex-images-mcp-http` (HTTP, see [self-hosting](self-hosting.md)).
 
-### `imagen uninstall`
-
-Remove the MCP registration from AI clients.
+## `login` / `logout`
 
 ```bash
-imagen uninstall                        # interactive
-imagen uninstall --all                  # remove from everywhere
-imagen uninstall --client codex         # remove from one client
-imagen uninstall --dry-run --all        # preview, no writes
+codex-images-mcp login
+# Open https://auth.openai.com/codex/device and enter the code ABCD-1234 to sign in.
+# Signed in. Session saved to ~/.config/codex-images/auth.json
 ```
 
-### `imagen status`
+`login` uses OpenAI's device-code sign-in, so it also works over SSH or inside a container. If it reports that device-code sign-in is not enabled, turn on device code authorization for Codex in ChatGPT's security settings.
 
-Show detected clients and whether codex-imagen is installed.
+The session is stored with mode `0600` in `~/.config/codex-images/auth.json` (or `$XDG_CONFIG_HOME/codex-images/auth.json`, or `CODEX_IMAGES_AUTH_FILE`). It is separate from the Codex CLI's session. Without it, codex-images-mcp falls back to `CODEX_HOME/auth.json` (default `~/.codex/auth.json`), but only **read-only** and only while that token is valid. It never refreshes a borrowed login, because refresh tokens rotate and doing so would sign the Codex app out.
+
+`logout` deletes only the codex-images session.
+
+## `generate`
 
 ```bash
-imagen status
+codex-images-mcp generate "a ceramic mug, studio light" --transparent
+codex-images-mcp generate --prompt-json spec.json -n 4
+codex-images-mcp generate "make it night" -r photo.jpg --mask sky.png
+codex-images-mcp generate "og card" --width 1200 --height 630 --size-policy cover --format jpeg
+CODEX_IMAGES_ENGINE=api OPENAI_API_KEY=sk-... codex-images-mcp generate "poster" --model gpt-image-2.6-sunburst --quality max
 ```
 
-Prints a table of 5 clients with `detected`, `installed`, and config path columns,
-plus a skill status table.
-
----
-
-## Generate command (default)
-
-When the first argument is not `setup`, `uninstall`, or `status`, `imagen` runs
-image generation.
-
-```bash
-imagen "a ceramic coffee mug, minimal hero shot"
-imagen "a ceramic mug" --transparent --size 1536x1024
-```
-
-### Input flags
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `PROMPT` | — | — | Positional prompt for single image |
-| `--file PATH` | `-f` | — | Read prompts from text file (one per line, `#` = comment) |
-| `--prompt-json PATH` | — | — | Read structured Codex labeled-spec dict or list from JSON file |
-
-Precedence: `--prompt-json` > `--file` > positional `PROMPT`.
-
-### Mode flags
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--mode` | `-m` | `auto` | Reasoning mode: `auto`, `raw`, `medium`, `high`, `max` |
-| `--batch-mode` | `-b` | `auto` | Batch strategy: `auto`, `single`, `parallel`, `variants`, `chain`, `branded-parallel` |
-| `--chain-mode` | — | `anchor+previous` | Chain context: `previous`, `anchor`, `anchor+previous`, `window:N`, `all` |
-| `--anchor` | `-a` | — | Explicit anchor prompt for `branded-parallel` |
-| `--count` | `-n` | `1` | Number of variants (variants mode) |
-
-### Content flags
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--reference PATH` | `-r` | — | Reference image (repeatable) |
-| `--skill PATH` | `-s` | — | Skill `.md` file to inject (repeatable) |
-| `--mask PATH` | — | — | Alpha mask for edits |
-| `--extra TEXT` | `-e` | — | Extra instructions appended to prompt |
-
-### Image flags
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--size` | — | `auto` | `auto` or `WIDTHxHEIGHT` (both axes multiples of 16, max 3840px) |
-| `--output-format` | — | `png` | `png`, `jpeg`, `webp` |
-
-### Transparency flags
-
-| Flag | Default | Description |
-|---|---|---|
-| `--transparent` | off | Enable chroma-key pipeline (requires Pillow) |
-| `--chroma-key HEX` | `#FF00FF` | Key color (`#00FF00` for most subjects, `#FF00FF` for green subjects) |
-| `--chroma-tolerance N` | `40` | 0–100. Higher = more pixels treated as background |
-| `--chroma-despill` / `--no-chroma-despill` | on | Enable/disable despill pass |
-
-### Orchestration flags
-
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--parallel N` | `-p` | `2` | Max concurrent bridge calls |
-| `--output-dir DIR` | `-o` | `./out` | Where images + `manifest.jsonl` are written |
-
-### Variable substitution
-
-```bash
-imagen "a {{color}} mug" --var color=red
-```
-
-| Flag | Description |
+| Option | Meaning |
 |---|---|
-| `--var key=value` | Variable substitution into prompts (repeatable) |
-| `--advanced key=value` | Pass-through to codex-image-gen bridge (repeatable, power users) |
+| `PROMPT` | Prompt text. |
+| `--prompt-json FILE` | JSON file with a prompt string, labeled-spec object or list of prompts. |
+| `-r, --reference FILE` | Reference image (repeatable, up to five). |
+| `--mask FILE` | Edit mask; requires `--reference`. |
+| `-n, --count N` | N variants of one prompt. |
+| `--transparent` | Request a native transparent background. |
+| `--format png\|jpeg\|webp` | Output format (default `png`). |
+| `--width`, `--height` | Final dimensions. |
+| `--size-policy native\|exact\|fit\|cover` | How to reach those dimensions (default `native`). |
+| `--model ID` | GPT Image model, for example `gpt-image-2.6-sunburst` (API engine only). |
+| `--quality LEVEL` | `auto`, `low`, `medium`, `high`, `xhigh` or `max` (API engine only). |
+| `--complexity LEVEL` | `low`, `medium` or `high` (API engine only). |
+| `-o, --output-dir DIR` | Artifact store (default `CODEX_IMAGES_OUTPUT_DIR` or your user data directory). |
+| `--pretty` | Human summary instead of JSON. |
 
-### Output / behavior flags
+Stdout gets the `codex-images.result/v2` JSON, with a local `path` for each image, or a short summary with `--pretty`. Warnings and errors go to stderr in `--pretty` mode.
 
-| Flag | Short | Default | Description |
-|---|---|---|---|
-| `--json` | — | auto | Force JSON output to stdout |
-| `--pretty` | — | auto | Force human-readable output |
-| `--quiet` | `-q` | off | Suppress progress messages (stderr) |
-| `--health` | — | — | Run pre-flight check and exit |
-| `--version` | — | — | Print version and exit |
+Exit codes: `0` when every image completed, `1` for sign-in or other command failures, `2` when generation failed or was partial, `3` for invalid arguments.
 
----
-
-## Exit codes
-
-| Code | Meaning |
-|---|---|
-| `0` | Success |
-| `1` | Health check failure (no API call was made) |
-| `2` | Generation failure (all calls failed) |
-| `3` | Invalid arguments |
-
----
-
-## Common workflows
-
-### Single image
+## `setup` / `status` / `uninstall`
 
 ```bash
-imagen "a coffee mug, minimal hero"
-imagen "a coffee mug" --size 1536x1024 --output-dir ./out/product
+codex-images-mcp setup                     # interactive
+codex-images-mcp setup --all               # every detected client
+codex-images-mcp setup --client cursor     # one client
+codex-images-mcp setup --dry-run --all     # preview only
+codex-images-mcp status
+codex-images-mcp uninstall --all
 ```
 
-### Transparent cut-out
+Clients: `claude-code`, `claude-desktop`, `codex`, `cursor` and `opencode`. `setup` registers an MCP server named `codex-images` that runs `uvx --from codex-images-mcp codex-images-mcp-server`, and installs a `codex-images` skill for clients that support skills.
 
-```bash
-imagen "an abstract leaf logo" --transparent
-imagen "a plant" --transparent --chroma-key "#FF00FF"  # green subject
-```
-
-### Multi-prompt branded set (website sections)
-
-```bash
-imagen -f sections.txt \
-  --batch-mode branded-parallel \
-  --anchor "warm beige editorial, soft serif headings, lots of whitespace" \
-  --parallel 3 \
-  --output-dir ./out/website
-```
-
-### Storyboard chain
-
-```bash
-imagen -f frames.txt --batch-mode chain --chain-mode anchor+previous
-```
-
-### With a skill file
-
-```bash
-imagen "hero shot for a fintech landing page" \
-  --skill ~/.claude/skills/brandkit/SKILL.md \
-  --output-dir ./out/hero
-```
-
-### JSON output for scripting
-
-```bash
-# Pipe into jq
-imagen "a coffee mug" --json | jq '.images[0].path'
-
-# Non-TTY auto-detects JSON mode
-imagen "a coffee mug" > result.json
-```
-
-### Structured prompt from JSON file
-
-```bash
-# prompt.json contains a dict or list
-imagen --prompt-json ./prompt.json --mode high
-```
-
----
-
-## Related
-
-- [SDK reference](sdk.md) — same parameters available programmatically
-- [MCP server](mcp.md) — `setup`, `uninstall`, `status` in depth
-- [Batch modes](modes.md) — batch strategy details
+If a client already has a `codex-imagen` entry from the original project, `setup` leaves it untouched and tells you how to remove it. `uninstall` only ever removes `codex-images`.

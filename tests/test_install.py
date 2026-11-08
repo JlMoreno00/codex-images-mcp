@@ -1,4 +1,4 @@
-"""Tests for codex_imagen._install — the multi-client MCP installer.
+"""Tests for codex_images_mcp._install — the multi-client MCP installer.
 
 Strategy
 --------
@@ -6,7 +6,7 @@ All tests use ``tmp_path`` and monkeypatch environment variables / module
 globals to redirect config paths to a temporary directory so no real user
 config files are touched.
 
-We monkeypatch ``codex_imagen._install._home`` (and ``os.environ`` where
+We monkeypatch ``codex_images_mcp._install._home`` (and ``os.environ`` where
 needed) to return ``tmp_path``, which gives us a fully isolated
 filesystem sandbox per test.
 
@@ -25,8 +25,8 @@ from typing import Any
 
 import pytest
 
-import codex_imagen._install as _install_mod
-from codex_imagen._install import (
+import codex_images_mcp._install as _install_mod
+from codex_images_mcp._install import (
     ClientStatus,
     _find_command,
     detect_clients,
@@ -63,15 +63,37 @@ def _patch_uvx_available(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def _patch_no_uvx(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Make shutil.which report uvx absent but codex-imagen-mcp present."""
+    """Make shutil.which report uvx absent but codex-images-mcp-server present."""
     def _which(name: str) -> str | None:
         if name == "uvx":
             return None
-        if name == "codex-imagen-mcp":
-            return "/usr/local/bin/codex-imagen-mcp"
+        if name == "codex-images-mcp-server":
+            return "/usr/local/bin/codex-images-mcp-server"
         return None
 
     monkeypatch.setattr(shutil, "which", _which)
+
+
+@pytest.mark.parametrize("client", ["claude-code", "codex"])
+def test_legacy_registration_is_preserved(monkeypatch, tmp_path, capsys, client):
+    _patch_home(monkeypatch, tmp_path)
+    _patch_uvx_available(monkeypatch)
+    old = {"command": "legacy", "args": ["--keep"], "env": {"X": "value"}}
+    if client == "codex":
+        path = tmp_path / ".codex" / "config.toml"
+        path.parent.mkdir()
+        path.write_text('[mcp_servers.codex-imagen]\ncommand = "legacy"\nargs = ["--keep"]\n[mcp_servers.codex-imagen.env]\nX = "value"\n')
+        read, key = _read_toml, "mcp_servers"
+    else:
+        path = tmp_path / ".claude.json"
+        path.write_text(json.dumps({"mcpServers": {"codex-imagen": old}}))
+        read, key = _read_json, "mcpServers"
+    assert install_for_client(client)[0]
+    assert "codex-imagen" in capsys.readouterr().err
+    assert read(path)[key]["codex-imagen"] == old
+    assert "codex-images" in read(path)[key]
+    assert uninstall_for_client(client)[0]
+    assert read(path)[key] == {"codex-imagen": old}
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -129,7 +151,7 @@ def test_detect_clients_claude_code_installed(
     """Claude Code shows installed=True when the MCP entry already exists."""
     _patch_home(monkeypatch, tmp_path)
     # The entry shape doesn't matter for detection — only the key presence does.
-    config = {"mcpServers": {"codex-imagen": {"command": "uvx", "args": ["codex-imagen-mcp"]}}}
+    config = {"mcpServers": {"codex-images": {"command": "uvx", "args": ["--from", "codex-images-mcp", "codex-images-mcp-server"]}}}
     (tmp_path / ".claude.json").write_text(json.dumps(config), encoding="utf-8")
     result = {s.key: s for s in detect_clients()}
     assert result["claude-code"].installed is True
@@ -177,9 +199,9 @@ def test_install_creates_missing_claude_code_config(
     assert ok is True
     data = _read_json(config_path)
     # With uvx available, the preferred form uses uvx as the command.
-    entry = data["mcpServers"]["codex-imagen"]
+    entry = data["mcpServers"]["codex-images"]
     assert entry["command"] == "uvx"
-    assert entry["args"] == ["codex-imagen-mcp"]
+    assert entry["args"] == ["--from", "codex-images-mcp", "codex-images-mcp-server"]
 
 
 def test_install_merges_existing_servers(
@@ -196,7 +218,7 @@ def test_install_merges_existing_servers(
     data = _read_json(config_path)
     # Both servers must be present.
     assert "other-server" in data["mcpServers"]
-    assert "codex-imagen" in data["mcpServers"]
+    assert "codex-images" in data["mcpServers"]
 
 
 def test_install_is_idempotent(
@@ -232,9 +254,9 @@ def test_install_cursor_creates_mcp_json(
     config_path = cursor_dir / "mcp.json"
     assert config_path.exists()
     data = _read_json(config_path)
-    entry = data["mcpServers"]["codex-imagen"]
+    entry = data["mcpServers"]["codex-images"]
     assert entry["command"] == "uvx"
-    assert entry["args"] == ["codex-imagen-mcp"]
+    assert entry["args"] == ["--from", "codex-images-mcp", "codex-images-mcp-server"]
 
 
 def test_install_unknown_client_returns_false(
@@ -267,11 +289,11 @@ def test_install_cursor_undetected_returns_false(
 def test_uninstall_removes_mcp_entry(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """uninstall_for_client removes the codex-imagen entry."""
+    """uninstall_for_client removes the codex-images entry."""
     _patch_home(monkeypatch, tmp_path)
     config = {
         "mcpServers": {
-            "codex-imagen": {"command": "uvx", "args": ["codex-imagen-mcp"]},
+            "codex-images": {"command": "uvx", "args": ["--from", "codex-images-mcp", "codex-images-mcp-server"]},
             "other-server": {"command": "other-mcp"},
         }
     }
@@ -281,7 +303,7 @@ def test_uninstall_removes_mcp_entry(
     ok, msg = uninstall_for_client("claude-code")
     assert ok is True
     data = _read_json(config_path)
-    assert "codex-imagen" not in data["mcpServers"]
+    assert "codex-images" not in data["mcpServers"]
     # Other server must survive.
     assert "other-server" in data["mcpServers"]
 
@@ -328,9 +350,9 @@ def test_install_codex_creates_toml(
     config_path = codex_dir / "config.toml"
     assert config_path.exists()
     data = _read_toml(config_path)
-    entry = data["mcp_servers"]["codex-imagen"]
+    entry = data["mcp_servers"]["codex-images"]
     assert entry["command"] == "uvx"
-    assert entry["args"] == ["codex-imagen-mcp"]
+    assert entry["args"] == ["--from", "codex-images-mcp", "codex-images-mcp-server"]
 
 
 def test_install_codex_preserves_other_toml_tables(
@@ -352,7 +374,7 @@ def test_install_codex_preserves_other_toml_tables(
     data = _read_toml(codex_dir / "config.toml")
     assert data["model"]["name"] == "gpt-5.5"
     assert "existing-tool" in data["mcp_servers"]
-    assert "codex-imagen" in data["mcp_servers"]
+    assert "codex-images" in data["mcp_servers"]
 
 
 def test_uninstall_codex_removes_entry(
@@ -366,13 +388,13 @@ def test_uninstall_codex_removes_entry(
     # Install first.
     install_for_client("codex")
     data_before = _read_toml(codex_dir / "config.toml")
-    assert "codex-imagen" in data_before["mcp_servers"]
+    assert "codex-images" in data_before["mcp_servers"]
 
     # Uninstall.
     ok, _ = uninstall_for_client("codex")
     assert ok is True
     data_after = _read_toml(codex_dir / "config.toml")
-    assert "codex-imagen" not in data_after.get("mcp_servers", {})
+    assert "codex-images" not in data_after.get("mcp_servers", {})
 
 
 # ---------------------------------------------------------------------------
@@ -393,9 +415,9 @@ def test_write_agents_snippet_creates_file(
     agents_path = codex_dir / "AGENTS.md"
     assert agents_path.exists()
     content = agents_path.read_text(encoding="utf-8")
-    assert "<!-- BEGIN codex-imagen-preference -->" in content
-    assert "<!-- END codex-imagen-preference -->" in content
-    assert "ALWAYS use the `imagen` MCP tool" in content
+    assert "<!-- BEGIN codex-images-preference -->" in content
+    assert "<!-- END codex-images-preference -->" in content
+    assert "use the `codex_images` MCP tool" in content
 
 
 def test_write_agents_snippet_appends_to_existing(
@@ -412,7 +434,7 @@ def test_write_agents_snippet_appends_to_existing(
     assert ok is True
     content = (codex_dir / "AGENTS.md").read_text(encoding="utf-8")
     assert "My existing instructions" in content
-    assert "<!-- BEGIN codex-imagen-preference -->" in content
+    assert "<!-- BEGIN codex-images-preference -->" in content
 
 
 def test_write_agents_snippet_is_idempotent(
@@ -430,7 +452,7 @@ def test_write_agents_snippet_is_idempotent(
 
     content = (codex_dir / "AGENTS.md").read_text(encoding="utf-8")
     # Block should appear exactly once.
-    assert content.count("<!-- BEGIN codex-imagen-preference -->") == 1
+    assert content.count("<!-- BEGIN codex-images-preference -->") == 1
 
 
 def test_remove_agents_snippet_removes_only_block(
@@ -445,7 +467,7 @@ def test_remove_agents_snippet_removes_only_block(
     agents_path = codex_dir / "AGENTS.md"
     agents_path.write_text(
         before_content
-        + "\n\n<!-- BEGIN codex-imagen-preference -->\n## Image Generation\nblah\n<!-- END codex-imagen-preference -->\n"
+        + "\n\n<!-- BEGIN codex-images-preference -->\n## Image Generation\nblah\n<!-- END codex-images-preference -->\n"
         + after_content,
         encoding="utf-8",
     )
@@ -455,7 +477,7 @@ def test_remove_agents_snippet_removes_only_block(
     remaining = agents_path.read_text(encoding="utf-8")
     assert "Keep this." in remaining
     assert "Keep this too." in remaining
-    assert "<!-- BEGIN codex-imagen-preference -->" not in remaining
+    assert "<!-- BEGIN codex-images-preference -->" not in remaining
 
 
 def test_remove_agents_snippet_is_idempotent(
@@ -513,7 +535,7 @@ def test_dry_run_uninstall_makes_no_changes(
     """uninstall_for_client dry_run=True makes zero filesystem changes."""
     _patch_home(monkeypatch, tmp_path)
     # Use the modern uvx-form so _is_mcp_installed_json returns True.
-    config = {"mcpServers": {"codex-imagen": {"command": "uvx", "args": ["codex-imagen-mcp"]}}}
+    config = {"mcpServers": {"codex-images": {"command": "uvx", "args": ["--from", "codex-images-mcp", "codex-images-mcp-server"]}}}
     config_path = tmp_path / ".claude.json"
     config_path.write_text(json.dumps(config), encoding="utf-8")
     mtime_before = config_path.stat().st_mtime
@@ -524,7 +546,7 @@ def test_dry_run_uninstall_makes_no_changes(
     assert config_path.stat().st_mtime == mtime_before
     # Entry must still be present.
     data = _read_json(config_path)
-    assert "codex-imagen" in data["mcpServers"]
+    assert "codex-images" in data["mcpServers"]
 
 
 def test_dry_run_agents_snippet_makes_no_changes(
@@ -569,7 +591,7 @@ def test_find_command_returns_none_when_missing(
 def test_mcp_entry_uses_uvx_when_available(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """When uvx is on PATH, install writes command=uvx, args=[codex-imagen-mcp]."""
+    """When uvx is on PATH, install writes command=uvx, args=[codex-images-mcp-server]."""
     _patch_home(monkeypatch, tmp_path)
     _patch_uvx_available(monkeypatch)
     config_path = tmp_path / ".claude.json"
@@ -578,14 +600,14 @@ def test_mcp_entry_uses_uvx_when_available(
     ok, _ = install_for_client("claude-code")
     assert ok is True
     data = _read_json(config_path)
-    entry = data["mcpServers"]["codex-imagen"]
-    assert entry == {"command": "uvx", "args": ["codex-imagen-mcp"]}
+    entry = data["mcpServers"]["codex-images"]
+    assert entry == {"command": "uvx", "args": ["--from", "codex-images-mcp", "codex-images-mcp-server"]}
 
 
 def test_mcp_entry_falls_back_to_direct_command_when_no_uvx(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """When uvx is absent but codex-imagen-mcp is on PATH, use the direct form."""
+    """When uvx is absent but codex-images-mcp-server is on PATH, use the direct form."""
     _patch_home(monkeypatch, tmp_path)
     _patch_no_uvx(monkeypatch)
     config_path = tmp_path / ".claude.json"
@@ -594,5 +616,5 @@ def test_mcp_entry_falls_back_to_direct_command_when_no_uvx(
     ok, _ = install_for_client("claude-code")
     assert ok is True
     data = _read_json(config_path)
-    entry = data["mcpServers"]["codex-imagen"]
-    assert entry == {"command": "codex-imagen-mcp", "args": []}
+    entry = data["mcpServers"]["codex-images"]
+    assert entry == {"command": "codex-images-mcp-server", "args": []}
