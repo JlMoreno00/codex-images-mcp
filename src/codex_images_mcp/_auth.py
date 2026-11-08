@@ -192,10 +192,12 @@ def _request_json(url: str, body: bytes, content_type: str) -> dict[str, Any]:
 def _write_private(path: Path, auth: Mapping[str, Any]) -> None:
     """Atomically write a 0600 credential file."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    # mkstemp already creates the file 0600 on POSIX; fchmod does not exist on Windows.
     fd, tmp = tempfile.mkstemp(prefix=".auth-", dir=path.parent)
     try:
-        os.fchmod(fd, 0o600)
         with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            if hasattr(os, "fchmod"):
+                os.fchmod(handle.fileno(), 0o600)
             json.dump(auth, handle, indent=2)
         os.replace(tmp, path)
     except BaseException:

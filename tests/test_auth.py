@@ -2,6 +2,7 @@
 import base64
 import json
 import stat
+import sys
 from email.message import Message
 from io import BytesIO
 
@@ -77,7 +78,8 @@ def test_own_store_refreshes_and_rewrites_only_itself(homes, monkeypatch):
     assert headers["Authorization"] == f"Bearer {FRESH}"
     assert json.loads(http.requests[0][1])["refresh_token"] == "old"
     assert json.loads(own.read_text())["tokens"]["refresh_token"] == "rotated"
-    assert stat.S_IMODE(own.stat().st_mode) == 0o600
+    if sys.platform != "win32":  # POSIX permission bits only
+        assert stat.S_IMODE(own.stat().st_mode) == 0o600
     assert borrowed.read_bytes() == before
 
 
@@ -124,7 +126,8 @@ def test_device_login_saves_private_store(homes, monkeypatch):
     assert "redirect_uri=https%3A%2F%2Fauth.openai.com%2Fdeviceauth%2Fcallback" in exchange
     saved = json.loads(own.read_text())["tokens"]
     assert saved == {"id_token": ID_TOKEN, "access_token": FRESH, "refresh_token": "mine", "account_id": "acct-1"}
-    assert stat.S_IMODE(own.stat().st_mode) == 0o600
+    if sys.platform != "win32":  # POSIX permission bits only
+        assert stat.S_IMODE(own.stat().st_mode) == 0o600
     assert not borrowed.exists()
 
 
@@ -141,3 +144,12 @@ def test_logout_removes_only_own_store(homes):
     assert logout() is True
     assert not own.exists() and borrowed.exists()
     assert logout() is False
+
+
+def test_private_write_works_without_fchmod(homes, monkeypatch):
+    """Windows has no os.fchmod; the store must still be written and no temp file left behind."""
+    own, _borrowed = homes
+    monkeypatch.delattr(_auth.os, "fchmod", raising=False)
+    _auth._write_private(own, {"tokens": {"access_token": FRESH, "account_id": "acct"}})
+    assert json.loads(own.read_text())["tokens"]["account_id"] == "acct"
+    assert [p.name for p in own.parent.iterdir()] == ["auth.json"]
