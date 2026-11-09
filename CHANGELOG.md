@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-11-09
 
 First release of codex-images-mcp, a fork of [VelmoAI/codex-imagen](https://github.com/VelmoAI/codex-imagen).
 
