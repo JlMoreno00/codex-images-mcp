@@ -6,6 +6,6 @@ The supported public surface is the MCP tools (``codex_images`` and
 and carry no stability guarantee.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 __all__ = ["__version__"]

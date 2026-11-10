@@ -4,6 +4,8 @@ Generate and edit images from any MCP client with **gpt-image-2 on the ChatGPT p
 
 codex-images-mcp is an MCP server for the Codex Images endpoint. It runs locally over stdio, or as a **self-hosted HTTP server** that your laptop, your VPS agents and your Pi / Gentle Shell sessions can share. Every image comes back as a verifiable artifact: SHA-256, byte count, MIME type and real dimensions.
 
+<!-- mcp-name: io.github.JlMoreno00/codex-images-mcp -->
+
 > **Unofficial.** Not affiliated with or endorsed by OpenAI. It signs in with your own ChatGPT account and uses the same endpoint as the Codex CLI. You are bound by OpenAI's terms for your account, and image generation counts against your plan's limits.
 
 ## What you get
@@ -32,6 +34,20 @@ uvx --from codex-images-mcp codex-images-mcp generate "a ceramic mug, studio lig
 ```
 
 Already signed in to the Codex CLI? codex-images-mcp can use that login **read-only** until its token expires. It never refreshes it; run `login` for a session of its own.
+
+## Example output
+
+Example outputs from gpt-image-2 via this server. The pictures are resized for this page. A transparent generate, and an edit that sends a reference plus a mask, are written up in [docs/examples.md](docs/examples.md).
+
+![Generate: a speckled ceramic mug on a transparent background. Edit + mask: the mug with a small stamped coffee bean on the front.](docs/example-before-after.jpg)
+
+The generate on the left used the prompt `a ceramic mug, studio light` with `transparent` set. The model returned a 1536×1024 PNG, 1,745,462 bytes, sha256 `e0d0338218529ca36e0d64e92eb2737c6794b392343f1a5ab32884a49dab48ba`. The edit sent that mug as the reference, with a mask over the front, and asked for a small dark brown stamped coffee bean. It returned a 1536×1024 PNG, sha256 `7c5b28d4950f5207c111f875ef9d19349e06be3da43ce1200d2d8d2c678b9ba5`. The camera angle shifted slightly. A mask is a hint, and the model may adjust the whole frame.
+
+The generate result is a PNG with a real alpha channel. The checkerboard is only a backdrop, so the transparent background is visible:
+
+![The generated mug composited on a checkerboard so the transparent background is visible.](docs/example-generate-checker.jpg)
+
+Also in this folder: an [off-white generate](docs/example-generate-hero.jpg), the [edit on a checkerboard](docs/example-edit-checker.jpg), and 1200px transparent PNGs of the [generate](docs/example-generate.png) and the [edit](docs/example-edit-1200.png).
 
 ## Self-hosted (HTTP)
 

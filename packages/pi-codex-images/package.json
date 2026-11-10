@@ -1,6 +1,6 @@
 {
   "name": "pi-codex-images",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi / Gentle Shell extension for a self-hosted codex-images-mcp server: generate and edit images with your ChatGPT plan, with verified local artifacts.",
   "license": "MIT",
   "type": "module",
@@ -29,5 +29,8 @@
     "typebox": "^1.3.3",
     "typescript": "^5.9.3"
   },
-  "pi": { "extensions": ["./index.ts"] }
+  "pi": {
+    "extensions": ["./index.ts"],
+    "image": "https://raw.githubusercontent.com/JlMoreno00/codex-images-mcp/main/docs/example-before-after.jpg"
+  }
 }

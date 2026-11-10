@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.1 — 2026-11-10
+
+### Added
+
+- README figures of real gpt-image-2 output from this server: a transparent generate, the masked edit (a stamped coffee bean), and a checkerboard view of the alpha channel.
+- Official MCP registry metadata for `io.github.JlMoreno00/codex-images-mcp`: the `mcp-name` marker in the README, `server.json` (PyPI over stdio, GHCR over self-hosted Streamable HTTP), and the OCI image label the registry uses to verify the image.
+- `pi.image` on `pi-codex-images`, pointing at the generate/edit figure, so the pi.dev gallery has a preview.
+
+### Changed
+
+- Root LICENSE is the standard MIT text, with copyrights for wauwa and JlMoreno00, so license detection can see MIT. The codex-image-gen attribution moved to NOTICE, which still credits the VelmoAI/codex-imagen fork (wauwa, MIT) and the OAuth handling derived from smturtle2/codex-image-gen.
+- `packages/pi-codex-images/LICENSE` adds the JlMoreno00 copyright beside wauwa.
+
 ## 0.1.0 — 2026-11-09
 
 First release of codex-images-mcp, a fork of [VelmoAI/codex-imagen](https://github.com/VelmoAI/codex-imagen).
