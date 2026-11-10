@@ -1,0 +1,58 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.JlMoreno00/codex-images-mcp",
+  "title": "Codex Images",
+  "description": "Generate and edit images with gpt-image-2, including masks and transparency.",
+  "websiteUrl": "https://github.com/JlMoreno00/codex-images-mcp",
+  "repository": {
+    "url": "https://github.com/JlMoreno00/codex-images-mcp",
+    "source": "github",
+    "id": "1449248107"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "codex-images-mcp",
+      "version": "0.1.1",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      }
+    },
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/jlmoreno00/codex-images-mcp:0.1.1",
+      "runtimeHint": "docker",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:8324/mcp/",
+        "headers": [
+          {
+            "name": "Authorization",
+            "description": "Value of CODEX_IMAGES_HTTP_TOKEN, prefixed with Bearer and a space.",
+            "isRequired": true,
+            "isSecret": true
+          }
+        ]
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--publish",
+          "value": "127.0.0.1:8324:8324",
+          "description": "Publish the image's default port on localhost, matching docker-compose.yml."
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "CODEX_IMAGES_HTTP_TOKEN",
+          "description": "Bearer token. The image listens on 0.0.0.0 and refuses to start without this.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

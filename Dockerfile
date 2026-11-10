@@ -1,6 +1,9 @@
 # codex-images-mcp — self-hosted Streamable HTTP server.
 FROM python:3.12-slim
 
+# mcp-publisher checks this label against the name in server.json.
+LABEL io.modelcontextprotocol.server.name="io.github.JlMoreno00/codex-images-mcp"
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     CODEX_HOME=/data/codex \
