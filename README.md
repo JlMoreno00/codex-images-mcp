@@ -1,5 +1,7 @@
 # codex-images-mcp
 
+[![Codex Images MCP on mcprush](https://mcprush.com/badge/codex-images-mcp/score.svg)](https://mcprush.com/to/codex-images-mcp?ref=badge)
+
 Generate and edit images from any MCP client with **gpt-image-2 on the ChatGPT plan you already pay for**. No OpenAI API key, no per-image bill.
 
 codex-images-mcp is an MCP server for the Codex Images endpoint. It runs locally over stdio, or as a **self-hosted HTTP server** that your laptop, your VPS agents and your Pi / Gentle Shell sessions can share. Every image comes back as a verifiable artifact: SHA-256, byte count, MIME type and real dimensions.
